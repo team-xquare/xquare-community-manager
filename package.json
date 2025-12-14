@@ -1,0 +1,22 @@
+{
+  "name": "xquare-community-manager",
+  "version": "0.0.1",
+  "description": "xquare infrastructure tech support tools",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "bun --watch index.js",
+    "start": "bun index.js",
+    "deploy": "bun deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2"
+  }
+}
