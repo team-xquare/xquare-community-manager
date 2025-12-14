@@ -1,18 +1,16 @@
 const { Events } = require('discord.js');
+const logger = require('../logger');
 
 module.exports = {
 	name: Events.ClientReady,
 	once: true,
 	execute(client) {
-		console.log('\n');
-		console.log('██╗  ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ███████╗');
-		console.log('╚██╗██╔╝██╔═══██╗██║   ██║██╔══██╗██╔══██╗██╔════╝');
-		console.log(' ╚███╔╝ ██║   ██║██║   ██║███████║██████╔╝█████╗  ');
-		console.log(' ██╔██╗ ██║▄▄ ██║██║   ██║██╔══██║██╔══██╗██╔══╝  ');
-		console.log('██╔╝ ██╗╚██████╔╝╚██████╔╝██║  ██║██║  ██║███████╗');
-		console.log('╚═╝  ╚═╝ ╚══▀▀═╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝');
-		console.log('\n');
-		console.log(`Ready! Logged in as ${client.user.tag}`);
-		console.log('\n');
+		logger.info('██╗  ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ███████╗');
+		logger.info('╚██╗██╔╝██╔═══██╗██║   ██║██╔══██╗██╔══██╗██╔════╝');
+		logger.info(' ╚███╔╝ ██║   ██║██║   ██║███████║██████╔╝█████╗  ');
+		logger.info(' ██╔██╗ ██║▄▄ ██║██║   ██║██╔══██║██╔══██╗██╔══╝  ');
+		logger.info('██╔╝ ██╗╚██████╔╝╚██████╔╝██║  ██║██║  ██║███████╗');
+		logger.info('╚═╝  ╚═╝ ╚══▀▀═╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝');
+		logger.info(`Ready! Logged in as ${client.user.tag}`);
 	},
 };

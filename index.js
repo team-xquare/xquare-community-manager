@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const logger = require('./logger');
 require('dotenv').config();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -14,9 +15,9 @@ for (const file of commandFiles) {
 	const command = require(filePath);
 	if ('data' in command && 'execute' in command) {
 		client.commands.set(command.data.name, command);
-		console.log(`[INFO] Loaded command: ${command.data.name}`);
+		logger.info(`Loaded command: ${command.data.name}`);
 	} else {
-		console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+		logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
 	}
 }
 
@@ -31,7 +32,7 @@ for (const file of eventFiles) {
 	} else {
 		client.on(event.name, (...args) => event.execute(...args));
 	}
-	console.log(`[INFO] Loaded event: ${event.name}`);
+	logger.info(`Loaded event: ${event.name}`);
 }
 
 client.login(process.env.DISCORD_BOT_TOKEN);
