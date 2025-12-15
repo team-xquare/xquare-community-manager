@@ -1,7 +1,8 @@
 const { Events } = require('discord.js');
-const logger = require('@utils/logger');
-const { getTicketByChannelId } = require('@domain/ticket/service/ticketQueryService');
-const { saveMessage } = require('@domain/message/service/saveMessageService');
+const logger = require('@xquare/global/utils/loggers/logger');
+const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandler');
+const { getTicketByChannelId } = require('@xquare/domain/ticket/service/ticketQueryService');
+const { saveMessage } = require('@xquare/domain/message/service/saveMessageService');
 
 module.exports = {
 	name: Events.MessageCreate,
@@ -16,7 +17,7 @@ module.exports = {
 					await saveMessage(ticket, message);
 				}
 			} catch (error) {
-				logger.error(`Failed to save message to ticket: ${error}`);
+				await handleError(wrapUnexpected(error), { message });
 			}
 		}
 	},

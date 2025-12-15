@@ -1,5 +1,5 @@
-const { createMessage } = require('@domain/message/repository/createMessageRepository');
-const logger = require('@utils/logger');
+const { createMessage } = require('@xquare/domain/message/repository/createMessageRepository');
+const logger = require('@xquare/global/utils/loggers/logger');
 
 async function saveMessage(ticket, message) {
 	const messageData = {

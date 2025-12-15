@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const logger = require('@utils/logger');
+const logger = require('@xquare/global/utils/loggers/logger');
 
 module.exports = {
 	name: Events.ClientReady,

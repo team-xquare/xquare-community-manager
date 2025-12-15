@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const logger = require('../utils/logger');
+const logger = require('@xquare/global/utils/loggers/logger');
 
 async function connectDB() {
 	try {

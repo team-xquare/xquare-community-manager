@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const logger = require('@utils/logger');
-const { createTicket } = require('@domain/ticket/service/createTicketService');
+const logger = require('@xquare/global/utils/loggers/logger');
+const { createTicket } = require('@xquare/domain/ticket/service/createTicketService');
 
 module.exports = {
 	data: new SlashCommandBuilder()

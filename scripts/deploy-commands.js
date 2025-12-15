@@ -2,7 +2,7 @@ require('module-alias/register');
 const fs = require('node:fs');
 const path = require('node:path');
 const { REST, Routes } = require('discord.js');
-const logger = require('@utils/logger');
+const logger = require('@xquare/global/utils/loggers/logger');
 require('dotenv').config();
 
 const commands = [];

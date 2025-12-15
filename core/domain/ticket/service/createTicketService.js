@@ -1,8 +1,8 @@
 const { ChannelType, PermissionsBitField } = require('discord.js');
-const { findLastTicket } = require('@domain/ticket/repository/findLastTicketRepository');
-const { createTicket: createTicketRecord } = require('@domain/ticket/repository/createTicketRepository');
-const messageProperties = require('@configs/messageProperties');
-const logger = require('@utils/logger');
+const { findLastTicket } = require('@xquare/domain/ticket/repository/findLastTicketRepository');
+const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
+const messageProperties = require('@xquare/global/configs/messageProperties');
+const logger = require('@xquare/global/utils/loggers/logger');
 
 async function getNextTicketNumber() {
 	const lastTicket = await findLastTicket();

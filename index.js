@@ -2,8 +2,8 @@ require('module-alias/register');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
-const logger = require('@utils/logger');
-const connectDB = require('@configs/database');
+const logger = require('@xquare/global/utils/loggers/logger');
+const connectDB = require('@xquare/global/configs/database');
 require('dotenv').config();
 
 connectDB();

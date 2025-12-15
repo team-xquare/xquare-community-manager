@@ -12,11 +12,7 @@
     "deploy": "bun scripts/deploy-commands.js"
   },
   "_moduleAliases": {
-    "@core": "core",
-    "@domain": "core/domain",
-    "@global": "core/global",
-    "@configs": "core/global/configs",
-    "@utils": "core/global/utils"
+    "@xquare": "core"
   },
   "dependencies": {
     "discord.js": "^14.25.1",
