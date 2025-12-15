@@ -1,4 +1,4 @@
-const { findTicketByChannelId } = require('../repository/findTicketByChannelIdRepository');
+const { findTicketByChannelId } = require('@domain/ticket/repository/findTicketByChannelIdRepository');
 
 async function getTicketByChannelId(channelId) {
 	return findTicketByChannelId(channelId);

@@ -1,5 +1,5 @@
-const { createMessage } = require('../repository/createMessageRepository');
-const logger = require('../../../global/logger.js');
+const { createMessage } = require('@domain/message/repository/createMessageRepository');
+const logger = require('@utils/logger');
 
 async function saveMessage(ticket, message) {
 	const messageData = {
