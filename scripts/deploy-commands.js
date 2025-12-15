@@ -1,7 +1,8 @@
+require('module-alias/register');
 const fs = require('node:fs');
 const path = require('node:path');
 const { REST, Routes } = require('discord.js');
-const logger = require('../core/global/logger');
+const logger = require('@utils/logger');
 require('dotenv').config();
 
 const commands = [];

@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
-const logger = require('../core/global/logger');
-const { getTicketByChannelId } = require('../core/domain/ticket/service/ticketQueryService');
-const { saveMessage } = require('../core/domain/message/service/saveMessageService');
+const logger = require('@utils/logger');
+const { getTicketByChannelId } = require('@domain/ticket/service/ticketQueryService');
+const { saveMessage } = require('@domain/message/service/saveMessageService');
 
 module.exports = {
 	name: Events.MessageCreate,

@@ -1,8 +1,9 @@
+require('module-alias/register');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
-const logger = require('./core/global/logger');
-const connectDB = require('./core/global/database');
+const logger = require('@utils/logger');
+const connectDB = require('@configs/database');
 require('dotenv').config();
 
 connectDB();
