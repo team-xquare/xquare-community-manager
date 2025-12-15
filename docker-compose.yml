@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: xquare-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: xquare-community-manager
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - xquare-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: xquare-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/xquare-community-manager
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - xquare-network
+    volumes:
+      - ./combined.log:/app/combined.log
+      - ./error.log:/app/error.log
+
+networks:
+  xquare-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  mongodb_config:

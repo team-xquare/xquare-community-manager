@@ -1,10 +1,19 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
-const logger = require('./logger');
+const logger = require('./core/global/logger');
+const connectDB = require('./core/global/database');
 require('dotenv').config();
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+connectDB();
+
+const client = new Client({
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.MessageContent,
+	]
+});
 
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
