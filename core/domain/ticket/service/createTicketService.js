@@ -1,7 +1,8 @@
 const { ChannelType, PermissionsBitField } = require('discord.js');
-const { findLastTicket } = require('../repository/findLastTicketRepository');
-const { createTicket: createTicketRecord } = require('../repository/createTicketRepository');
-const logger = require('../../../global/logger.js');
+const { findLastTicket } = require('@domain/ticket/repository/findLastTicketRepository');
+const { createTicket: createTicketRecord } = require('@domain/ticket/repository/createTicketRepository');
+const messageProperties = require('@configs/messageProperties');
+const logger = require('@utils/logger');
 
 async function getNextTicketNumber() {
 	const lastTicket = await findLastTicket();
@@ -9,8 +10,8 @@ async function getNextTicketNumber() {
 }
 
 async function createTicketChannel(guild, user, client, ticketNumber) {
-	const paddedNumber = String(ticketNumber).padStart(3, '0');
-	const channelName = `xquare-ticket-${paddedNumber}-${user.username}`;
+	const paddedNumber = String(ticketNumber).padStart(messageProperties.ticketNumberPadLength, '0');
+	const channelName = `${messageProperties.ticketChannelPrefix}-${paddedNumber}-${user.username}`;
 
 	return guild.channels.create({
 		name: channelName,
