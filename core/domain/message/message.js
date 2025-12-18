@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
+	ticketId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'tbl_ticket',
+		required: true,
+		index: true,
+	},
 	channelId: {
 		type: String,
 		required: true,

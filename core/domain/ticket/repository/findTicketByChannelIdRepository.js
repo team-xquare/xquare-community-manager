@@ -4,4 +4,12 @@ async function findTicketByChannelId(channelId) {
 	return Ticket.findOne({ channelId });
 }
 
-module.exports = { findTicketByChannelId };
+async function findTicketById(id) {
+	return Ticket.findById(id);
+}
+
+async function findTicketByNumber(ticketNumber) {
+	return Ticket.findOne({ ticketNumber });
+}
+
+module.exports = { findTicketByChannelId, findTicketById, findTicketByNumber };

@@ -10,6 +10,22 @@ const ticketSchema = new mongoose.Schema({
 		type: String,
 		required: true,
 	},
+	title: {
+		type: String,
+		default: '',
+	},
+	description: {
+		type: String,
+		default: '',
+	},
+	labels: {
+		type: [String],
+		default: [],
+	},
+	assignees: {
+		type: [String],
+		default: [],
+	},
 	userId: {
 		type: String,
 		required: true,
@@ -24,7 +40,7 @@ const ticketSchema = new mongoose.Schema({
 	},
 	status: {
 		type: String,
-		enum: ['open', 'closed'],
+		enum: ['open', 'in-progress', 'closed'],
 		default: 'open',
 	},
 	createdAt: {
@@ -33,6 +49,33 @@ const ticketSchema = new mongoose.Schema({
 	},
 	closedAt: {
 		type: Date,
+	},
+	closedBy: {
+		type: String,
+	},
+	closeScheduledAt: {
+		type: Date,
+		default: null,
+	},
+	closeScheduledBy: {
+		type: String,
+		default: null,
+	},
+	originalChannelName: {
+		type: String,
+		default: null,
+	},
+	summaryMessageId: {
+		type: String,
+		default: null,
+	},
+	welcomeText: {
+		type: String,
+		default: null,
+	},
+	lastActivityAt: {
+		type: Date,
+		default: Date.now,
 	},
 });
 

@@ -9,16 +9,14 @@ module.exports = {
 	async execute(message) {
 		if (message.author.bot) return;
 
-		if (message.channel.name && message.channel.name.startsWith('xquare-ticket-')) {
-			try {
-				const ticket = await getTicketByChannelId(message.channel.id);
+		try {
+			const ticket = await getTicketByChannelId(message.channel.id);
 
-				if (ticket) {
-					await saveMessage(ticket, message);
-				}
-			} catch (error) {
-				await handleError(wrapUnexpected(error), { message });
+			if (ticket) {
+				await saveMessage(ticket, message);
 			}
+		} catch (error) {
+			await handleError(wrapUnexpected(error), { message });
 		}
 	},
 };

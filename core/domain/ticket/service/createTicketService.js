@@ -1,21 +1,25 @@
 const { ChannelType, PermissionsBitField } = require('discord.js');
 const { findLastTicket } = require('@xquare/domain/ticket/repository/findLastTicketRepository');
 const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
-const messageProperties = require('@xquare/global/configs/messageProperties');
 const logger = require('@xquare/global/utils/loggers/logger');
+const { getSetting } = require('@xquare/domain/setting/service/settingService');
+const ValidationError = require('@xquare/global/utils/errors/ValidationError');
+const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
 
 async function getNextTicketNumber() {
 	const lastTicket = await findLastTicket();
 	return lastTicket ? lastTicket.ticketNumber + 1 : 1;
 }
 
-async function createTicketChannel(guild, user, client, ticketNumber) {
-	const paddedNumber = String(ticketNumber).padStart(messageProperties.ticketNumberPadLength, '0');
-	const channelName = `${messageProperties.ticketChannelPrefix}-${paddedNumber}-${user.username}`;
+async function createTicketChannel(guild, user, client, ticketNumber, settings) {
+	const paddedNumber = String(ticketNumber).padStart(settings.numberPadLength, '0');
+	const channelName = `${settings.channelPrefix}-${paddedNumber}-${user.username}`;
+	const category = await getOrCreateTicketCategory(guild);
 
 	return guild.channels.create({
 		name: channelName,
 		type: ChannelType.GuildText,
+		parent: category.id,
 		permissionOverwrites: [
 			{
 				id: guild.id,
@@ -41,26 +45,92 @@ async function createTicketChannel(guild, user, client, ticketNumber) {
 	});
 }
 
-async function createTicket(interaction) {
+async function getOrCreateTicketCategory(guild) {
+	await guild.channels.fetch();
+	const category = guild.channels.cache.find(channel =>
+		channel.type === ChannelType.GuildCategory
+		&& channel.name.toLowerCase() === 'ticket'
+	);
+
+	if (category) {
+		return category;
+	}
+
+	return guild.channels.create({
+		name: 'ticket',
+		type: ChannelType.GuildCategory,
+	});
+}
+
+async function createTicket(interaction, payload = {}) {
+	const settings = await getSetting('guild', interaction.guildId, 'ticket', 'ui');
+	if (!settings.channelPrefix || !settings.numberPadLength) {
+		throw new ValidationError('Ticket settings are incomplete. Configure channel_prefix and number_pad via /ticket set.');
+	}
+
+	const title =
+		payload.title
+		|| interaction.options?.getString?.('title')
+		|| '제목 없음';
+	const description =
+		payload.description
+		|| interaction.options?.getString?.('description')
+		|| '';
+	const labelsRaw =
+		payload.labels
+		|| interaction.options?.getString?.('labels')
+		|| '';
+	const assignee =
+		payload.assignee
+		|| interaction.options?.getUser?.('assignee');
+	const inputLabels = labelsRaw
+		.split(',')
+		.map(label => label.trim())
+		.filter(Boolean);
+	const defaultLabels = Array.isArray(settings.defaultLabels)
+		? settings.defaultLabels
+		: (typeof settings.defaultLabels === 'string'
+			? settings.defaultLabels.split(',').map(label => label.trim()).filter(Boolean)
+			: []);
+	const labels = inputLabels.length ? inputLabels : defaultLabels;
+	const assignees = assignee ? [assignee.id] : [];
+
+	const rawWelcomeText = settings.welcomeMessage
+		?.replace('{user}', `${interaction.user}`)
+		|| `${interaction.user} 님의 티켓이 생성되었습니다. 문의 내용을 작성해주세요.`;
+	const welcomeText = rawWelcomeText.replace(/\\n/g, '\n');
+
 	const nextTicketNumber = await getNextTicketNumber();
 
 	const ticketChannel = await createTicketChannel(
 		interaction.guild,
 		interaction.user,
 		interaction.client,
-		nextTicketNumber
+		nextTicketNumber,
+		settings
 	);
 
-	await createTicketRecord({
+	const ticketRecord = await createTicketRecord({
 		ticketNumber: nextTicketNumber,
 		channelId: ticketChannel.id,
+		title,
+		description,
+		labels,
+		assignees,
 		userId: interaction.user.id,
 		username: interaction.user.username,
 		guildId: interaction.guild.id,
 		status: 'open',
+		welcomeText,
 	});
 
-	await ticketChannel.send(`${interaction.user} 님의 티켓이 생성되었습니다. 문의 내용을 작성해주세요.`);
+	const textLines = [welcomeText];
+	if (description) {
+		textLines.push(`설명: ${description}`);
+	}
+	await ticketChannel.send({ content: textLines.join('\n') });
+
+	await updateTicketSummary(ticketChannel, ticketRecord.toObject());
 
 	logger.info(`Ticket #${nextTicketNumber} created: ${ticketChannel.name} (${ticketChannel.id}) by ${interaction.user.tag}`);
 

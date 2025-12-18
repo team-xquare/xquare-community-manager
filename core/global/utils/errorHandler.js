@@ -1,3 +1,4 @@
+const { MessageFlags } = require('discord.js');
 const policies = require('@xquare/global/configs/errorPolicies');
 const UnexpectedError = require('./errors/UnexpectedError');
 const logger = require('@xquare/global/utils/loggers/logger');
@@ -17,9 +18,9 @@ async function replySafe(target, content) {
 	try {
 		if (!target) return;
 		if (target.replied || target.deferred) {
-			await target.followUp({ content, ephemeral: true });
+			await target.followUp({ content, flags: MessageFlags.Ephemeral });
 		} else {
-			await target.reply({ content, ephemeral: true });
+			await target.reply({ content, flags: MessageFlags.Ephemeral });
 		}
 	} catch (replyError) {
 		logger.error(`Failed to send error reply: ${replyError}`);
