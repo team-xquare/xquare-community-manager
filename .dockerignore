@@ -1,12 +1,8 @@
 node_modules
-npm-debug.log
+*.log
 .env
 .git
-.gitignore
-*.md
-*.log
+.github
+docker-compose.yml
+README.md
 .DS_Store
-.vscode
-.idea
-combined.log
-error.log
