@@ -64,6 +64,14 @@ module.exports = {
 					option.setName('default_labels')
 						.setDescription('기본 라벨(콤마로 구분)')
 						.setRequired(false))
+        .addStringOption(option =>
+					option.setName('open_category')
+						.setDescription('티켓 채널을 생성할 카테고리.')
+					  .setRequired(false))
+        .addStringOption(option =>
+					option.setName('close_category')
+						.setDescription('삭제한 티켓이 옮겨질 카테고리.')
+						.setRequired(false))
 		)
 		.addSubcommand(subcommand =>
 			subcommand
@@ -189,7 +197,9 @@ module.exports = {
 			const defaultLabelsRaw = interaction.options.getString('default_labels') || undefined;
 			const defaultLabels = defaultLabelsRaw
 				? defaultLabelsRaw.split(',').map(label => label.trim()).filter(Boolean)
-				: undefined;
+			  : undefined;
+      const openCategory = interaction.options.getString('open_category') || undefined;
+      const closeCategory = interaction.options.getString('close_category') || undefined;
 
 			const updatePayload = {};
 			if (channelPrefix) updatePayload.channelPrefix = channelPrefix;
@@ -199,6 +209,8 @@ module.exports = {
 			if (uiMessage) updatePayload.uiMessage = uiMessage;
 			if (buttonLabel) updatePayload.buttonLabels = { create: buttonLabel };
 			if (defaultLabels) updatePayload.defaultLabels = defaultLabels;
+      if (openCategory) updatePayload.openCategory = openCategory;
+      if (closeCategory) updatePayload.closeCategory = closeCategory;
 
 			try {
 				const updated = await updateSetting('guild', interaction.guildId, 'ticket', 'ui', updatePayload, interaction.user.id);
@@ -212,6 +224,8 @@ module.exports = {
 						`UI 안내 메시지: ${updated.uiMessage ?? '기본값'}`,
 						`버튼 라벨: ${updated.buttonLabels?.create ?? '기본값'}`,
 						`기본 라벨: ${updated.defaultLabels?.length ? updated.defaultLabels.map(l => `\`${l}\``).join(', ') : '미설정'}`,
+            `채널 생성 카테고리: ${updated.openCategory ?? '기본값'}`,
+            `채널 닫힘 카테고리: ${updated.closeCategory ?? '기본값'}`,
 					].join('\n'),
 				});
 			} catch (error) {

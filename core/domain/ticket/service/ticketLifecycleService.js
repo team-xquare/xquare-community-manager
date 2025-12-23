@@ -6,6 +6,8 @@ const NotFoundError = require('@xquare/global/utils/errors/NotFoundError');
 const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
+const { getOrCreateCategory } = require('@xquare/global/utils/category');
+const { getSetting } = require('@xquare/domain/setting/service/settingService');
 
 const pendingCloseTimers = new Map();
 
@@ -34,6 +36,14 @@ async function finalizeClose(channel, ticket, actorId, reason) {
 	} catch (err) {
 		logger.warn(`Failed to rename closed ticket channel ${channel.id}: ${err}`);
 	}
+
+  try {
+    const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
+    const newCategory = await getOrCreateCategory(channel.guild, settings.closeCategory);
+    await channel.setParent(newCategory.id);
+  } catch (err) {
+    logger.warn(`Failed to set category of ticket channel ${channel.id} to ${newCategory.id}: ${err}`);
+  }
 
 	try {
 		await channel.permissionOverwrites.edit(ticket.userId, {
@@ -154,6 +164,14 @@ async function reopenTicket(channel, actorMember) {
 	} catch (err) {
 		logger.warn(`Failed to restore ticket channel name ${channel.id}: ${err}`);
 	}
+
+  try {
+    const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
+    const newCategory = await getOrCreateCategory(channel.guild, settings.openCategory);
+    await channel.setParent(newCategory.id);
+  } catch (err) {
+    logger.warn(`Failed to set category of ticket channel ${channel.id} to ${newCategory.id}: ${err}`);
+  }
 
 	try {
 		await channel.permissionOverwrites.edit(ticket.userId, {
