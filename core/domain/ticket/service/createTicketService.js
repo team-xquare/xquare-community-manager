@@ -5,6 +5,7 @@ const logger = require('@xquare/global/utils/loggers/logger');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
 const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
+const { getOrCreateCategory } = require('@xquare/global/utils/category');
 
 async function getNextTicketNumber() {
 	const lastTicket = await findLastTicket();
@@ -14,7 +15,7 @@ async function getNextTicketNumber() {
 async function createTicketChannel(guild, user, client, ticketNumber, settings) {
 	const paddedNumber = String(ticketNumber).padStart(settings.numberPadLength, '0');
 	const channelName = `${settings.channelPrefix}-${paddedNumber}-${user.username}`;
-	const category = await getOrCreateTicketCategory(guild);
+	const category = await getOrCreateCategory(guild, settings.openCategory);
 
 	return guild.channels.create({
 		name: channelName,
@@ -45,28 +46,34 @@ async function createTicketChannel(guild, user, client, ticketNumber, settings) 
 	});
 }
 
-async function getOrCreateTicketCategory(guild) {
-	await guild.channels.fetch();
-	const category = guild.channels.cache.find(channel =>
-		channel.type === ChannelType.GuildCategory
-		&& channel.name.toLowerCase() === 'ticket'
-	);
-
-	if (category) {
-		return category;
-	}
-
-	return guild.channels.create({
-		name: 'ticket',
-		type: ChannelType.GuildCategory,
-	});
-}
+const requiredSettingsFields = [
+  {
+    key: 'channelPrefix',
+    displayName: 'channel_prefix',
+  },
+  {
+    key: 'numberPadLength',
+    displayName: 'number_pad',
+  },
+  {
+    key: 'openCategory',
+    displayName: 'open_category',
+  },
+  {
+    key: 'closeCategory',
+    displayName: 'close_category',
+  },
+];
 
 async function createTicket(interaction, payload = {}) {
 	const settings = await getSetting('guild', interaction.guildId, 'ticket', 'ui');
-	if (!settings.channelPrefix || !settings.numberPadLength) {
-		throw new ValidationError('Ticket settings are incomplete. Configure channel_prefix and number_pad via /ticket set.');
-	}
+  const missingFields = requiredSettingsFields.filter(({ key }) => !(key in settings));
+  if (missingFields.length) {
+    const missingFieldsFormatted = missingFields.map((field) => field.displayName).join(', ');
+    throw new ValidationError(
+      `Ticket settings are incomplete. Configure missing fields: ${missingFieldsFormatted}`
+    );
+  }
 
 	const title =
 		payload.title
