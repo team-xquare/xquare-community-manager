@@ -6,8 +6,6 @@ services:
     container_name: xquare-mongodb
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: xquare-community-manager
     ports:
       - "27017:27017"
@@ -32,7 +30,7 @@ services:
     env_file:
       - .env
     environment:
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/xquare-community-manager?authSource=admin
+      MONGODB_URI: mongodb://mongodb:27017/xquare-community-manager
     depends_on:
       mongodb:
         condition: service_healthy
