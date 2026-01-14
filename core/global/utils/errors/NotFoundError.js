@@ -1,7 +1,9 @@
 const BaseError = require('./BaseError');
 
+const DEFAULT_MESSAGE = 'Resource not found';
+
 class NotFoundError extends BaseError {
-	constructor(message = 'Resource not found', options = {}) {
+	constructor(message = DEFAULT_MESSAGE, options = {}) {
 		super('NotFoundError', message, { ...options, logLevel: 'warn', expose: true });
 	}
 }

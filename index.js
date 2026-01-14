@@ -7,60 +7,73 @@ const connectDB = require('@xquare/global/configs/database');
 const { migrateTicketCounter } = require('@xquare/domain/ticket/service/ticketMigrationService');
 require('dotenv').config();
 
-const requiredEnvVars = ['DISCORD_BOT_TOKEN', 'CLIENT_ID', 'MONGODB_URI'];
-const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+const REQUIRED_ENV = ['DISCORD_BOT_TOKEN', 'CLIENT_ID', 'MONGODB_URI'];
 
-if (missingEnvVars.length > 0) {
-	console.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-	console.error('Please check your .env file and ensure all required variables are set.');
-	process.exit(1);
-}
+const LOG = {
+	missingEnv: names => `Missing required environment variables: ${names}`,
+	missingEnvHint: 'Please check your .env file and ensure all required variables are set.',
+	commandMissing: filePath => `Command is missing required "data" or "execute" property: ${filePath}`,
+	eventMissing: filePath => `Event is missing required "name" or "execute" property: ${filePath}`,
+	commandLoaded: name => `Loaded command: ${name}`,
+	eventLoaded: name => `Loaded event: ${name}`,
+	startFailed: 'Failed to start bot',
+};
 
-(async () => {
+const getMissingEnvVars = () => REQUIRED_ENV.filter(name => !process.env[name]);
+
+const validateEnv = () => {
+	const missing = getMissingEnvVars();
+	if (!missing.length) return true;
+	console.error(LOG.missingEnv(missing.join(', ')));
+	console.error(LOG.missingEnvHint);
+	return false;
+};
+
+const loadCommands = client => {
+	const commandsPath = path.join(__dirname, 'commands');
+	const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+	commandFiles.forEach(file => {
+		const filePath = path.join(commandsPath, file);
+		const command = require(filePath);
+		if (!command?.data || !command?.execute) return logger.warn(LOG.commandMissing(filePath));
+		client.commands.set(command.data.name, command);
+		return logger.info(LOG.commandLoaded(command.data.name));
+	});
+};
+
+const loadEvents = client => {
+	const eventsPath = path.join(__dirname, 'events');
+	const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+
+	eventFiles.forEach(file => {
+		const filePath = path.join(eventsPath, file);
+		const event = require(filePath);
+		if (!event?.name || !event?.execute) return logger.warn(LOG.eventMissing(filePath));
+		if (event.once) client.once(event.name, (...args) => event.execute(...args));
+		else client.on(event.name, (...args) => event.execute(...args));
+		return logger.info(LOG.eventLoaded(event.name));
+	});
+};
+
+const buildClient = () => new Client({
+	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+});
+
+const start = async () => {
+	if (!validateEnv()) process.exit(1);
 	try {
 		await connectDB();
 		await migrateTicketCounter();
-
-		const client = new Client({
-			intents: [
-				GatewayIntentBits.Guilds,
-				GatewayIntentBits.GuildMessages,
-				GatewayIntentBits.MessageContent,
-			],
-		});
-
+		const client = buildClient();
 		client.commands = new Collection();
-		const commandsPath = path.join(__dirname, 'commands');
-		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-		for (const file of commandFiles) {
-			const filePath = path.join(commandsPath, file);
-			const command = require(filePath);
-			if ('data' in command && 'execute' in command) {
-				client.commands.set(command.data.name, command);
-				logger.info(`Loaded command: ${command.data.name}`);
-			} else {
-				logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
-			}
-		}
-
-		const eventsPath = path.join(__dirname, 'events');
-		const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-
-		for (const file of eventFiles) {
-			const filePath = path.join(eventsPath, file);
-			const event = require(filePath);
-			if (event.once) {
-				client.once(event.name, (...args) => event.execute(...args));
-			} else {
-				client.on(event.name, (...args) => event.execute(...args));
-			}
-			logger.info(`Loaded event: ${event.name}`);
-		}
-
+		loadCommands(client);
+		loadEvents(client);
 		await client.login(process.env.DISCORD_BOT_TOKEN);
 	} catch (error) {
-		logger.error('Failed to start bot', { error });
+		logger.error(LOG.startFailed, { error });
 		process.exit(1);
 	}
-})();
+};
+
+start();

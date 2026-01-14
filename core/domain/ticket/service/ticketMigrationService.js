@@ -1,16 +1,15 @@
 const Counter = require('@xquare/domain/ticket/counter');
 const Ticket = require('@xquare/domain/ticket/ticket');
 const logger = require('@xquare/global/utils/loggers/logger');
-const { t } = require('@xquare/global/i18n');
 
 const COUNTER_ID = 'ticketNumber';
 
-const MESSAGES = {
-	start: t('ticket.migration.start'),
-	noTickets: t('ticket.migration.noTickets'),
-	skipped: t('ticket.migration.skipped'),
-	updated: (from, to) => t('ticket.migration.updated', { from, to }),
-	failed: t('ticket.migration.failed'),
+const LOG = {
+	start: 'Starting ticket counter migration',
+	noTickets: 'Skipping ticket counter migration (no tickets)',
+	skipped: 'Ticket counter already up to date',
+	updated: (from, to) => `Ticket counter updated from ${from} to ${to}`,
+	failed: 'Ticket counter migration failed',
 };
 
 async function getMaxTicketNumber() {
@@ -22,26 +21,20 @@ async function getMaxTicketNumber() {
 
 async function migrateTicketCounter() {
 	try {
-		logger.info(MESSAGES.start);
+		logger.info(LOG.start);
 		const maxTicketNumber = await getMaxTicketNumber();
-		if (!maxTicketNumber) {
-			logger.info(MESSAGES.noTickets);
-			return;
-		}
+		if (!maxTicketNumber) return logger.info(LOG.noTickets);
 		const counter = await Counter.findById(COUNTER_ID).lean();
 		const current = counter?.sequence || 0;
-		if (current >= maxTicketNumber) {
-			logger.info(MESSAGES.skipped);
-			return;
-		}
+		if (current >= maxTicketNumber) return logger.info(LOG.skipped);
 		await Counter.updateOne(
 			{ _id: COUNTER_ID },
 			{ $set: { sequence: maxTicketNumber } },
 			{ upsert: true }
 		);
-		logger.info(MESSAGES.updated(current, maxTicketNumber));
+		logger.info(LOG.updated(current, maxTicketNumber));
 	} catch (error) {
-		logger.error(MESSAGES.failed, { error });
+		logger.error(LOG.failed, { error });
 		throw error;
 	}
 }

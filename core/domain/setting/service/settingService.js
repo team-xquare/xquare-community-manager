@@ -1,9 +1,11 @@
 const repository = require('@xquare/domain/setting/repository/settingRepository');
 const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 
-function isPlainObject(value) {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const ERROR = {
+	settingMissing: (domain, key) => `Setting not configured for domain=${domain}, key=${key}`,
+};
+
+const isPlainObject = value => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function mergeDeep(base, patch) {
 	const result = { ...(base || {}) };
@@ -20,9 +22,7 @@ function mergeDeep(base, patch) {
 
 async function getSetting(scope, scopeId, domain, key) {
 	const doc = await repository.findSetting(scope, scopeId, domain, key);
-	if (!doc) {
-		throw new ValidationError(`Setting not configured for domain=${domain}, key=${key}`);
-	}
+	if (!doc) throw new ValidationError(ERROR.settingMissing(domain, key));
 	return doc.values || {};
 }
 

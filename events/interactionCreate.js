@@ -4,71 +4,67 @@ const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandl
 const { createTicket } = require('@xquare/domain/ticket/service/createTicketService');
 const { t } = require('@xquare/global/i18n');
 
+const FLAGS = { flags: MessageFlags.Ephemeral };
+
+const LOG = {
+	missingCommand: name => `No command matching ${name} was found`,
+};
+
+const MODAL = {
+	openId: 'ticket:open-modal',
+	openTitle: t('ticket.modal.title'),
+	fields: {
+		title: { id: 'ticket:title', label: t('ticket.modal.field.title'), style: TextInputStyle.Short, required: true },
+		description: { id: 'ticket:description', label: t('ticket.modal.field.description'), style: TextInputStyle.Paragraph, required: false },
+	},
+};
+
+const RESPONSE = {
+	created: channelId => t('ticket.response.created', { channelId }),
+};
+
+const buildModal = () => {
+	const modal = new ModalBuilder().setCustomId(MODAL.openId).setTitle(MODAL.openTitle);
+	const titleInput = new TextInputBuilder().setCustomId(MODAL.fields.title.id).setLabel(MODAL.fields.title.label).setStyle(MODAL.fields.title.style).setRequired(MODAL.fields.title.required);
+	const descriptionInput = new TextInputBuilder().setCustomId(MODAL.fields.description.id).setLabel(MODAL.fields.description.label).setStyle(MODAL.fields.description.style).setRequired(MODAL.fields.description.required);
+	return modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descriptionInput));
+};
+
+const handleOpenButton = async interaction => {
+	try {
+		return interaction.showModal(buildModal());
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction });
+	}
+};
+
+const handleOpenModal = async interaction => {
+	try {
+		await interaction.deferReply(FLAGS);
+		const title = interaction.fields.getTextInputValue(MODAL.fields.title.id);
+		const description = interaction.fields.getTextInputValue(MODAL.fields.description.id);
+		const result = await createTicket(interaction, { title, description });
+		return interaction.editReply({ content: RESPONSE.created(result.channel.id) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction });
+	}
+};
+
+const handleCommand = async interaction => {
+	const command = interaction.client.commands.get(interaction.commandName);
+	if (!command) return logger.error(LOG.missingCommand(interaction.commandName));
+	try {
+		return command.execute(interaction);
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction });
+	}
+};
+
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
-		if (interaction.isButton()) {
-			if (interaction.customId === 'ticket:open') {
-				try {
-					const modal = new ModalBuilder()
-						.setCustomId('ticket:open-modal')
-						.setTitle(t('ticket.modal.title'));
-
-					const titleInput = new TextInputBuilder()
-						.setCustomId('ticket:title')
-						.setLabel(t('ticket.modal.field.title'))
-						.setStyle(TextInputStyle.Short)
-						.setRequired(true);
-
-					const descriptionInput = new TextInputBuilder()
-						.setCustomId('ticket:description')
-						.setLabel(t('ticket.modal.field.description'))
-						.setStyle(TextInputStyle.Paragraph)
-						.setRequired(false);
-
-					modal.addComponents(
-						new ActionRowBuilder().addComponents(titleInput),
-						new ActionRowBuilder().addComponents(descriptionInput)
-					);
-
-					await interaction.showModal(modal);
-				} catch (error) {
-					await handleError(wrapUnexpected(error), { interaction });
-				}
-				return;
-			}
-		}
-
-		if (interaction.isModalSubmit()) {
-			if (interaction.customId === 'ticket:open-modal') {
-				try {
-					await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-					const title = interaction.fields.getTextInputValue('ticket:title');
-					const description = interaction.fields.getTextInputValue('ticket:description');
-					const result = await createTicket(interaction, { title, description });
-					await interaction.editReply({
-						content: t('ticket.response.created', { channelId: result.channel.id }),
-					});
-				} catch (error) {
-					await handleError(wrapUnexpected(error), { interaction });
-				}
-				return;
-			}
-		}
-
-		if (!interaction.isChatInputCommand()) return;
-
-		const command = interaction.client.commands.get(interaction.commandName);
-
-		if (!command) {
-			logger.error(`No command matching ${interaction.commandName} was found.`);
-			return;
-		}
-
-		try {
-			await command.execute(interaction);
-		} catch (error) {
-			await handleError(wrapUnexpected(error), { interaction });
-		}
+		if (interaction.isButton() && interaction.customId === 'ticket:open') return handleOpenButton(interaction);
+		if (interaction.isModalSubmit() && interaction.customId === MODAL.openId) return handleOpenModal(interaction);
+		if (interaction.isChatInputCommand()) return handleCommand(interaction);
 	},
 };

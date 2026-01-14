@@ -2,6 +2,10 @@ const { createMessage } = require('@xquare/domain/message/repository/createMessa
 const { updateTicketById } = require('@xquare/domain/ticket/repository/updateTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
 
+const LOG = {
+	saved: (ticketNumber, author, content) => `Message saved to ticket #${ticketNumber}: ${author} - ${content}`,
+};
+
 async function saveMessage(ticket, message) {
 	const messageData = {
 		ticketId: ticket.id,
@@ -15,7 +19,7 @@ async function saveMessage(ticket, message) {
 
 	await createMessage(messageData);
 	await updateTicketById(ticket.id, { lastActivityAt: new Date() });
-	logger.info(`Message saved to ticket #${ticket.ticketNumber}: ${message.author.username} - ${message.content}`);
+	logger.info(LOG.saved(ticket.ticketNumber, message.author.username, message.content));
 }
 
 module.exports = { saveMessage };

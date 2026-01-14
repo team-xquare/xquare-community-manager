@@ -6,6 +6,7 @@ class BaseError extends Error {
 		this.logLevel = options.logLevel || 'error';
 		this.metadata = options.metadata;
 		this.expose = options.expose || false;
+		this.logMessage = options.logMessage;
 	}
 }
 

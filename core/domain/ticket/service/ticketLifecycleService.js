@@ -10,238 +10,205 @@ const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
 const { t } = require('@xquare/global/i18n');
 
+const ERROR = {
+	adminOnlyClose: t('ticket.errors.adminOnlyClose'),
+	ticketNotFound: t('ticket.errors.ticketNotFound'),
+	alreadyClosed: t('ticket.errors.alreadyClosed'),
+	alreadyClosing: t('ticket.errors.alreadyClosing'),
+};
+
+const TEXT = {
+	reasonLine: reason => t('ticket.lifecycle.reasonLine', { reason }),
+	closed: (userId, reason) => t('ticket.lifecycle.closed', { userId, reason }),
+	closeScheduled: (minutes, reason) => t('ticket.lifecycle.closeScheduled', { minutes, reason }),
+	reopened: userId => t('ticket.lifecycle.reopened', { userId }),
+};
+
+const LOG = {
+	renameClosedFailed: 'Failed to rename closed ticket channel',
+	setCategoryFailed: 'Failed to set ticket channel category',
+	permissionsClosedFailed: 'Failed to update permissions for closed ticket',
+	finalizeCloseFailed: 'Failed to finalize ticket close',
+	renameReopenFailed: 'Failed to restore ticket channel name',
+	permissionsReopenFailed: 'Failed to restore permissions for reopened ticket',
+	channelMissing: 'Failed to find channel for scheduled close',
+	scheduleFailed: 'Failed to schedule close for ticket',
+};
+
 const pendingCloseTimers = new Map();
 
-function assertAdmin(actorMember) {
-	const hasManageGuild = actorMember?.permissions?.has?.(PermissionsBitField.Flags.ManageGuild);
-	if (!hasManageGuild) {
-		throw new ValidationError(t('ticket.errors.adminOnlyClose'), { expose: true });
-	}
-}
+const hasManageGuild = member => member?.permissions?.has?.(PermissionsBitField.Flags.ManageGuild);
 
-async function finalizeClose(channel, ticket, actorId, reason) {
-	const updated = await updateTicketByChannelId(channel.id, {
-		status: 'closed',
-		closedAt: new Date(),
-		closedBy: actorId,
-		closeScheduledAt: null,
-		closeScheduledBy: null,
-		originalChannelName: channel.name,
-		lastActivityAt: new Date(),
-	});
-	await updateTicketSummary(channel, updated);
+const assertAdmin = member => {
+	if (hasManageGuild(member)) return;
+	throw new ValidationError(ERROR.adminOnlyClose, { expose: true });
+};
 
+const updateCloseStatus = (channel, ticket, actorId) => updateTicketByChannelId(channel.id, {
+	status: 'closed',
+	closedAt: new Date(),
+	closedBy: actorId,
+	closeScheduledAt: null,
+	closeScheduledBy: null,
+	originalChannelName: channel.name,
+	lastActivityAt: new Date(),
+});
+
+const updateReopenStatus = channel => updateTicketByChannelId(channel.id, {
+	status: 'open',
+	closedAt: null,
+	closedBy: null,
+	closeScheduledAt: null,
+	closeScheduledBy: null,
+	originalChannelName: null,
+	lastActivityAt: new Date(),
+});
+
+const renameClosedChannel = async channel => {
+	const baseName = channel.name.replace(/^closed-/, '');
 	try {
-		const baseName = channel.name.replace(/^closed-/, '');
 		await channel.setName(`closed-${baseName}`.slice(0, 100));
-	} catch (err) {
-		logger.warn('Failed to rename closed ticket channel', { error: err, channelId: channel.id });
+	} catch (error) {
+		logger.warn(LOG.renameClosedFailed, { error, channelId: channel.id });
 	}
+};
 
+const renameOpenChannel = async (channel, originalName) => {
+	const targetName = originalName || channel.name.replace(/^closed-/, '');
+	try {
+		await channel.setName(targetName.slice(0, 100));
+	} catch (error) {
+		logger.warn(LOG.renameReopenFailed, { error, channelId: channel.id });
+	}
+};
+
+const updateCategory = async (channel, categoryName) => {
+	let categoryId = null;
+	try {
+		const category = await getOrCreateCategory(channel.guild, categoryName);
+		categoryId = category.id;
+		await channel.setParent(category.id);
+	} catch (error) {
+		logger.warn(LOG.setCategoryFailed, { error, channelId: channel.id, categoryId });
+	}
+};
+
+const getCategoryName = async (channel, key) => {
 	try {
 		const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
-		const newCategory = await getOrCreateCategory(channel.guild, settings.closeCategory);
-		await channel.setParent(newCategory.id);
-	} catch (err) {
-		logger.warn('Failed to set category of ticket channel', { error: err, channelId: channel.id });
+		return settings[key];
+	} catch (error) {
+		logger.warn(LOG.setCategoryFailed, { error, channelId: channel.id });
+		return null;
 	}
+};
 
+const updatePermissions = async (channel, userId, permissions, logMessage, logContext) => {
 	try {
-		await channel.permissionOverwrites.edit(ticket.userId, {
-			SendMessages: false,
-			ViewChannel: true,
-			ReadMessageHistory: true,
-		});
-	} catch (err) {
-		logger.warn('Failed to update permissions for closed ticket', { error: err, channelId: channel.id, userId: ticket.userId });
+		await channel.permissionOverwrites.edit(userId, permissions);
+	} catch (error) {
+		logger.warn(logMessage, { error, ...logContext });
 	}
+};
 
-	const reasonText = reason ? t('ticket.lifecycle.reasonLine', { reason }) : '';
-	await channel.send(t('ticket.lifecycle.closed', { userId: ticket.userId, reason: reasonText }));
+const cancelScheduledClose = channelId => {
+	const timer = pendingCloseTimers.get(channelId);
+	if (!timer) return;
+	clearTimeout(timer);
+	pendingCloseTimers.delete(channelId);
+};
+
+const scheduleCloseTimer = (channel, closesAt, reason) => {
+	cancelScheduledClose(channel.id);
+	const delay = closesAt.getTime() - Date.now();
+	if (delay <= 0) return void handleScheduledClose(channel, reason);
+	const timer = setTimeout(() => void handleScheduledClose(channel, reason), delay);
+	pendingCloseTimers.set(channel.id, timer);
+};
+
+async function finalizeClose(channel, ticket, actorId, reason) {
+	const updated = await updateCloseStatus(channel, ticket, actorId);
+	await updateTicketSummary(channel, updated);
+	await renameClosedChannel(channel);
+	const closeCategory = await getCategoryName(channel, 'closeCategory');
+	if (closeCategory) await updateCategory(channel, closeCategory);
+	await updatePermissions(channel, ticket.userId, { SendMessages: false, ViewChannel: true, ReadMessageHistory: true }, LOG.permissionsClosedFailed, { channelId: channel.id, userId: ticket.userId });
+	const reasonText = reason ? TEXT.reasonLine(reason) : '';
+	await channel.send(TEXT.closed(ticket.userId, reasonText));
 	return updated;
-}
-
-function cancelScheduledClose(channelId) {
-	const pendingTimer = pendingCloseTimers.get(channelId);
-	if (pendingTimer) {
-		clearTimeout(pendingTimer);
-		pendingCloseTimers.delete(channelId);
-	}
 }
 
 async function handleScheduledClose(channel, reason) {
 	try {
 		const ticket = await findTicketByChannelId(channel.id);
-		if (!ticket) return;
-
-		if (!ticket.closeScheduledAt) return;
-
-		const now = Date.now();
-		if (ticket.closeScheduledAt.getTime() > now) {
-			scheduleCloseTimer(channel, ticket.closeScheduledAt, reason);
-			return;
-		}
-
+		if (!ticket || !ticket.closeScheduledAt) return;
+		if (ticket.closeScheduledAt.getTime() > Date.now()) return scheduleCloseTimer(channel, ticket.closeScheduledAt, reason);
 		await finalizeClose(channel, ticket, ticket.closeScheduledBy || null, reason);
-	} catch (err) {
-		logger.error('Failed to finalize ticket close for channel', { error: err, channelId: channel.id });
+	} catch (error) {
+		logger.error(LOG.finalizeCloseFailed, { error, channelId: channel.id });
 	} finally {
 		pendingCloseTimers.delete(channel.id);
 	}
 }
 
-function scheduleCloseTimer(channel, closesAt, reason) {
-	cancelScheduledClose(channel.id);
-
-	const delay = closesAt.getTime() - Date.now();
-	if (delay <= 0) {
-		void handleScheduledClose(channel, reason);
-		return;
-	}
-
-	const timer = setTimeout(() => {
-		void handleScheduledClose(channel, reason);
-	}, delay);
-
-	pendingCloseTimers.set(channel.id, timer);
-}
-
 async function closeTicket(channel, actorMember, reason, options = {}) {
-	const delayMs = options.delayMs ?? 5 * 60 * 1000;
 	assertAdmin(actorMember);
-
 	const ticket = await findTicketByChannelId(channel.id);
-	if (!ticket) {
-		throw new NotFoundError(t('ticket.errors.ticketNotFound'));
-	}
+	if (!ticket) throw new NotFoundError(ERROR.ticketNotFound);
+	if (ticket.status === 'closed') throw new ValidationError(ERROR.alreadyClosed);
+	if (ticket.closeScheduledAt && ticket.closeScheduledAt.getTime() > Date.now()) throw new ValidationError(ERROR.alreadyClosing);
 
-	if (ticket.status === 'closed') {
-		throw new ValidationError(t('ticket.errors.alreadyClosed'));
-	}
-
-	const now = Date.now();
-	if (ticket.closeScheduledAt && ticket.closeScheduledAt.getTime() > now) {
-		throw new ValidationError(t('ticket.errors.alreadyClosing'));
-	}
-
-	const closesAt = new Date(now + delayMs);
-	const updated = await updateTicketByChannelId(channel.id, {
-		closeScheduledAt: closesAt,
-		closeScheduledBy: actorMember.id,
-	});
+	const delayMs = options.delayMs ?? 5 * 60 * 1000;
+	const closesAt = new Date(Date.now() + delayMs);
+	const updated = await updateTicketByChannelId(channel.id, { closeScheduledAt: closesAt, closeScheduledBy: actorMember.id });
 	await updateTicketSummary(channel, updated);
 
-	const reasonText = reason ? t('ticket.lifecycle.reasonLine', { reason }) : '';
+	const reasonText = reason ? TEXT.reasonLine(reason) : '';
 	const minutes = Math.max(1, Math.round(delayMs / 60000));
-	await channel.send(t('ticket.lifecycle.closeScheduled', { minutes, reason: reasonText }));
+	await channel.send(TEXT.closeScheduled(minutes, reasonText));
 
 	scheduleCloseTimer(channel, closesAt, reason);
-
 	return { scheduled: true, closesAt };
 }
 
 async function reopenTicket(channel, actorMember) {
 	assertAdmin(actorMember);
-
 	const ticket = await findTicketByChannelId(channel.id);
-	if (!ticket) {
-		throw new NotFoundError(t('ticket.errors.ticketNotFound'));
-	}
+	if (!ticket) throw new NotFoundError(ERROR.ticketNotFound);
 
 	cancelScheduledClose(channel.id);
-
-	const updated = await updateTicketByChannelId(channel.id, {
-		status: 'open',
-		closedAt: null,
-		closedBy: null,
-		closeScheduledAt: null,
-		closeScheduledBy: null,
-		originalChannelName: null,
-		lastActivityAt: new Date(),
-	});
+	const updated = await updateReopenStatus(channel);
 	await updateTicketSummary(channel, updated);
-
-	try {
-		const targetName = ticket.originalChannelName || channel.name.replace(/^closed-/, '');
-		await channel.setName(targetName.slice(0, 100));
-	} catch (err) {
-		logger.warn('Failed to restore ticket channel name', { error: err, channelId: channel.id });
-	}
-
-	let targetCategoryId = null;
-	try {
-		const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
-		const newCategory = await getOrCreateCategory(channel.guild, settings.openCategory);
-		targetCategoryId = newCategory.id;
-		await channel.setParent(newCategory.id);
-	} catch (err) {
-		logger.warn('Failed to set category of ticket channel', { error: err, channelId: channel.id, categoryId: targetCategoryId });
-	}
-
-	try {
-		await channel.permissionOverwrites.edit(ticket.userId, {
-			SendMessages: true,
-			ViewChannel: true,
-			ReadMessageHistory: true,
-		});
-	} catch (err) {
-		logger.warn('Failed to restore permissions for reopened ticket', { error: err, ticketId: ticket.id });
-	}
-
-	await channel.send(t('ticket.lifecycle.reopened', { userId: ticket.userId }));
+	await renameOpenChannel(channel, ticket.originalChannelName);
+	const openCategory = await getCategoryName(channel, 'openCategory');
+	if (openCategory) await updateCategory(channel, openCategory);
+	await updatePermissions(channel, ticket.userId, { SendMessages: true, ViewChannel: true, ReadMessageHistory: true }, LOG.permissionsReopenFailed, { ticketId: ticket.id });
+	await channel.send(TEXT.reopened(ticket.userId));
 	return updated;
 }
 
 async function bootstrapScheduledCloses(client) {
-	const tickets = await findAllTickets({
-		closeScheduledAt: { $ne: null },
-		status: { $ne: 'closed' },
-	});
-
+	const tickets = await findAllTickets({ closeScheduledAt: { $ne: null }, status: { $ne: 'closed' } });
 	const channelIds = [...new Set(tickets.map(ticket => ticket.channelId).filter(Boolean))];
-	const channelMap = new Map();
+	const channelMap = new Map(channelIds.map(id => [id, client.channels.cache.get(id)]).filter(([, channel]) => channel));
+	const fetchIds = channelIds.filter(id => !channelMap.has(id));
 
-	for (const channelId of channelIds) {
-		const cached = client.channels.cache.get(channelId);
-		if (cached) {
-			channelMap.set(channelId, cached);
-		}
-	}
-
-	const fetchIds = channelIds.filter(channelId => !channelMap.has(channelId));
-	const fetchResults = await Promise.allSettled(
-		fetchIds.map(channelId => client.channels.fetch(channelId))
-	);
-
+	const fetchResults = await Promise.allSettled(fetchIds.map(channelId => client.channels.fetch(channelId)));
 	fetchResults.forEach((result, index) => {
 		const channelId = fetchIds[index];
-		if (result.status === 'fulfilled' && result.value) {
-			channelMap.set(channelId, result.value);
-		} else {
-			logger.warn('Failed to find channel for scheduled close', {
-				channelId,
-				error: result.status === 'rejected' ? result.reason : null,
-			});
-		}
+		if (result.status === 'fulfilled' && result.value) return channelMap.set(channelId, result.value);
+		return logger.warn(LOG.channelMissing, { channelId, error: result.status === 'rejected' ? result.reason : null });
 	});
 
-	for (const ticket of tickets) {
+	tickets.forEach(ticket => {
 		try {
 			const channel = channelMap.get(ticket.channelId);
-			if (!channel) {
-				logger.warn('Failed to find channel for scheduled close', { channelId: ticket.channelId });
-				continue;
-			}
-
-			scheduleCloseTimer(channel, ticket.closeScheduledAt, null);
-		} catch (err) {
-			logger.error('Failed to schedule close for ticket', { error: err, ticketId: ticket.id });
+			if (!channel) return logger.warn(LOG.channelMissing, { channelId: ticket.channelId });
+			return scheduleCloseTimer(channel, ticket.closeScheduledAt, null);
+		} catch (error) {
+			logger.error(LOG.scheduleFailed, { error, ticketId: ticket.id });
 		}
-	}
+	});
 }
 
-module.exports = {
-	closeTicket,
-	reopenTicket,
-	bootstrapScheduledCloses,
-};
+module.exports = { closeTicket, reopenTicket, bootstrapScheduledCloses };

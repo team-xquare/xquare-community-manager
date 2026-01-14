@@ -5,45 +5,42 @@ const { REST, Routes } = require('discord.js');
 const logger = require('@xquare/global/utils/loggers/logger');
 require('dotenv').config();
 
+const LOG = {
+	commandLoaded: name => `Loaded command: ${name}`,
+	commandInvalid: path => `Command is missing required "data" or "execute" property: ${path}`,
+	refreshStart: count => `Started refreshing ${count} application (/) commands`,
+	registerGuild: guildId => `Registering commands to guild: ${guildId}`,
+	registerGlobal: 'Registering commands globally (this may take up to 1 hour)',
+	refreshSuccess: count => `Successfully reloaded ${count} application (/) commands`,
+	refreshFailed: 'Failed to refresh commands',
+};
+
 const commands = [];
 const commandsPath = path.join(__dirname, '../commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-for (const file of commandFiles) {
+commandFiles.forEach(file => {
 	const filePath = path.join(commandsPath, file);
 	const command = require(filePath);
-	if ('data' in command && 'execute' in command) {
-		commands.push(command.data.toJSON());
-		logger.info(`Loaded command: ${command.data.name}`);
-	} else {
-		logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
-	}
-}
+	if (!command?.data || !command?.execute) return logger.warn(LOG.commandInvalid(filePath));
+	commands.push(command.data.toJSON());
+	return logger.info(LOG.commandLoaded(command.data.name));
+});
 
 const rest = new REST().setToken(process.env.DISCORD_BOT_TOKEN);
 
-(async () => {
-	try {
-		logger.info(`Started refreshing ${commands.length} application (/) commands.`);
+const registerCommands = async () => {
+	logger.info(LOG.refreshStart(commands.length));
+	const isGuild = process.env.GUILD_ID && process.env.GUILD_ID !== 'YOUR_GUILD_ID';
+	if (isGuild) logger.info(LOG.registerGuild(process.env.GUILD_ID));
+	else logger.info(LOG.registerGlobal);
 
-		let data;
+	const route = isGuild
+		? Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID)
+		: Routes.applicationCommands(process.env.CLIENT_ID);
 
-		if (process.env.GUILD_ID && process.env.GUILD_ID !== 'YOUR_GUILD_ID') {
-			logger.info(`Registering commands to guild: ${process.env.GUILD_ID}`);
-			data = await rest.put(
-				Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-				{ body: commands },
-			);
-		} else {
-			logger.info('Registering commands globally (this may take up to 1 hour)');
-			data = await rest.put(
-				Routes.applicationCommands(process.env.CLIENT_ID),
-				{ body: commands },
-			);
-		}
+	const data = await rest.put(route, { body: commands });
+	logger.info(LOG.refreshSuccess(data.length));
+};
 
-		logger.info(`Successfully reloaded ${data.length} application (/) commands.`);
-	} catch (error) {
-		logger.error(error);
-	}
-})();
+registerCommands().catch(error => logger.error(LOG.refreshFailed, { error }));

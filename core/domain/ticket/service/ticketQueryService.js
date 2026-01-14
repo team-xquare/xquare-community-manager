@@ -2,30 +2,26 @@ const { findTicketByChannelId } = require('@xquare/domain/ticket/repository/find
 const { findTickets } = require('@xquare/domain/ticket/repository/findTicketsRepository');
 const { validateQueryFilters, sanitizeDiscordId } = require('@xquare/global/utils/validators');
 
+const DEFAULTS = { minLimit: 1, maxLimit: 100, limit: 10 };
+
+const buildQuery = filters => {
+	const query = {};
+	if (filters.guildId) query.guildId = filters.guildId;
+	if (filters.status) query.status = filters.status;
+	if (filters.label) query.labels = { $in: [filters.label] };
+	if (filters.assignee) query.assignees = { $in: [filters.assignee] };
+	return query;
+};
+
+const normalizeLimit = limit => Math.min(Math.max(DEFAULTS.minLimit, limit || DEFAULTS.limit), DEFAULTS.maxLimit);
+
 async function getTicketByChannelId(channelId) {
-	const sanitizedChannelId = sanitizeDiscordId(channelId, 'Channel ID');
-	return findTicketByChannelId(sanitizedChannelId);
+	return findTicketByChannelId(sanitizeDiscordId(channelId, 'Channel ID'));
 }
 
 async function listTickets(filters = {}, options = {}) {
-	const sanitizedFilters = validateQueryFilters(filters);
-
-	const query = {};
-	if (sanitizedFilters.guildId) {
-		query.guildId = sanitizedFilters.guildId;
-	}
-	if (sanitizedFilters.status) {
-		query.status = sanitizedFilters.status;
-	}
-	if (sanitizedFilters.label) {
-		query.labels = { $in: [sanitizedFilters.label] };
-	}
-	if (sanitizedFilters.assignee) {
-		query.assignees = { $in: [sanitizedFilters.assignee] };
-	}
-
-	const limit = Math.min(Math.max(1, options.limit || 10), 100);
-	return findTickets(query, limit);
+	const sanitized = validateQueryFilters(filters);
+	return findTickets(buildQuery(sanitized), normalizeLimit(options.limit));
 }
 
 module.exports = { getTicketByChannelId, listTickets };

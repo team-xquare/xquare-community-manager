@@ -1,25 +1,40 @@
 const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 
-function sanitizeString(value, fieldName = 'Field', maxLength = 500) {
-	if (value === null || value === undefined) {
-		return '';
-	}
+const ERROR = {
+	notString: field => `${field} must be a string`,
+	tooLong: (field, max) => `${field} must not exceed ${max} characters`,
+	labelTooLong: max => `Each label must not exceed ${max} characters`,
+	labelInvalid: label => `Label "${label}" contains invalid characters`,
+	statusNotString: 'Status must be a string',
+	statusInvalid: valid => `Status must be one of: ${valid.join(', ')}`,
+	idNotString: field => `${field} must be a string`,
+	idInvalid: field => `${field} must be a valid Discord ID`,
+	labelNotString: 'Label must be a string',
+};
 
-	if (typeof value !== 'string') {
-		throw new ValidationError(`${fieldName} must be a string`);
-	}
+const DEFAULTS = {
+	stringMax: 500,
+	labelsMax: 10,
+	labelLength: 50,
+	statusList: ['open', 'in-progress', 'closed', 'closing'],
+	discordId: /^\d{17,20}$/,
+	labelPattern: /^[a-zA-Z0-9가-힣\s\-_]+$/,
+};
 
-	if (value.length > maxLength) {
-		throw new ValidationError(`${fieldName} must not exceed ${maxLength} characters`);
-	}
+const ensureString = (value, fieldName) => {
+	if (value === null || value === undefined) return '';
+	if (typeof value !== 'string') throw new ValidationError(ERROR.notString(fieldName));
+	return value;
+};
 
-	return value.trim();
+function sanitizeString(value, fieldName = 'Field', maxLength = DEFAULTS.stringMax) {
+	const raw = ensureString(value, fieldName);
+	if (raw.length > maxLength) throw new ValidationError(ERROR.tooLong(fieldName, maxLength));
+	return raw.trim();
 }
 
-function sanitizeLabels(labelsString, maxLabels = 10, maxLabelLength = 50) {
-	if (!labelsString || typeof labelsString !== 'string') {
-		return [];
-	}
+function sanitizeLabels(labelsString, maxLabels = DEFAULTS.labelsMax, maxLabelLength = DEFAULTS.labelLength) {
+	if (!labelsString || typeof labelsString !== 'string') return [];
 
 	const labels = labelsString
 		.split(',')
@@ -27,76 +42,39 @@ function sanitizeLabels(labelsString, maxLabels = 10, maxLabelLength = 50) {
 		.filter(Boolean)
 		.slice(0, maxLabels);
 
-	for (const label of labels) {
-		if (label.length > maxLabelLength) {
-			throw new ValidationError(`Each label must not exceed ${maxLabelLength} characters`);
-		}
-		if (!/^[a-zA-Z0-9가-힣\s\-_]+$/.test(label)) {
-			throw new ValidationError(`Label "${label}" contains invalid characters`);
-		}
-	}
+	labels.forEach(label => {
+		if (label.length > maxLabelLength) throw new ValidationError(ERROR.labelTooLong(maxLabelLength));
+		if (!DEFAULTS.labelPattern.test(label)) throw new ValidationError(ERROR.labelInvalid(label));
+	});
 
 	return labels;
 }
 
 function sanitizeTicketStatus(status) {
-	const validStatuses = ['open', 'in-progress', 'closed', 'closing'];
-
-	if (!status) {
-		return undefined;
-	}
-
-	if (typeof status !== 'string') {
-		throw new ValidationError('Status must be a string');
-	}
+	if (!status) return undefined;
+	if (typeof status !== 'string') throw new ValidationError(ERROR.statusNotString);
 
 	const normalizedStatus = status.toLowerCase().trim();
-
-	if (!validStatuses.includes(normalizedStatus)) {
-		throw new ValidationError(`Status must be one of: ${validStatuses.join(', ')}`);
-	}
-
+	if (!DEFAULTS.statusList.includes(normalizedStatus)) throw new ValidationError(ERROR.statusInvalid(DEFAULTS.statusList));
 	return normalizedStatus;
 }
 
 function sanitizeDiscordId(id, fieldName = 'ID') {
-	if (!id) {
-		return undefined;
-	}
-
-	if (typeof id !== 'string') {
-		throw new ValidationError(`${fieldName} must be a string`);
-	}
-
-	if (!/^\d{17,20}$/.test(id)) {
-		throw new ValidationError(`${fieldName} must be a valid Discord ID`);
-	}
-
+	if (!id) return undefined;
+	if (typeof id !== 'string') throw new ValidationError(ERROR.idNotString(fieldName));
+	if (!DEFAULTS.discordId.test(id)) throw new ValidationError(ERROR.idInvalid(fieldName));
 	return id;
 }
 
 function validateQueryFilters(filters) {
 	const sanitized = {};
-
-	if (filters.guildId) {
-		sanitized.guildId = sanitizeDiscordId(filters.guildId, 'Guild ID');
-	}
-
-	if (filters.status) {
-		sanitized.status = sanitizeTicketStatus(filters.status);
-	}
-
+	if (filters.guildId) sanitized.guildId = sanitizeDiscordId(filters.guildId, 'Guild ID');
+	if (filters.status) sanitized.status = sanitizeTicketStatus(filters.status);
 	if (filters.label) {
-		if (typeof filters.label !== 'string') {
-			throw new ValidationError('Label must be a string');
-		}
-		sanitized.label = sanitizeString(filters.label, 'Label', 50);
+		if (typeof filters.label !== 'string') throw new ValidationError(ERROR.labelNotString);
+		sanitized.label = sanitizeString(filters.label, 'Label', DEFAULTS.labelLength);
 	}
-
-	if (filters.assignee) {
-		sanitized.assignee = sanitizeDiscordId(filters.assignee, 'Assignee ID');
-	}
-
+	if (filters.assignee) sanitized.assignee = sanitizeDiscordId(filters.assignee, 'Assignee ID');
 	return sanitized;
 }
 

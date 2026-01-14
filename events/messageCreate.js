@@ -7,14 +7,12 @@ const { saveMessage } = require('@xquare/domain/message/service/saveMessageServi
 module.exports = {
 	name: Events.MessageCreate,
 	async execute(message) {
-		if (message.author.bot) return;
+		if (message.author?.bot) return;
 
 		try {
 			const ticket = await getTicketByChannelId(message.channel.id);
-
-			if (ticket) {
-				await saveMessage(ticket, message);
-			}
+			if (!ticket) return;
+			await saveMessage(ticket, message);
 		} catch (error) {
 			await handleError(wrapUnexpected(error), { message });
 		}

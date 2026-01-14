@@ -4,51 +4,28 @@ const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSum
 const NotFoundError = require('@xquare/global/utils/errors/NotFoundError');
 const { t } = require('@xquare/global/i18n');
 
+const ERROR = { ticketNotFound: t('ticket.errors.ticketNotFound') };
+
+const buildUpdatedArray = (currentValues, items, operation) => {
+	const current = new Set(currentValues || []);
+	if (operation === 'add') return [...new Set([...current, ...items])];
+	if (operation === 'remove') return [...current].filter(item => !items.includes(item));
+	return currentValues || [];
+};
+
 async function updateTicketArray(channel, fieldName, items, operation) {
 	const ticket = await findTicketByChannelId(channel.id);
-	if (!ticket) {
-		throw new NotFoundError(t('ticket.errors.ticketNotFound'));
-	}
+	if (!ticket) throw new NotFoundError(ERROR.ticketNotFound);
 
-	let updatedArray;
-	if (operation === 'add') {
-		const current = new Set(ticket[fieldName] || []);
-		items.forEach(item => current.add(item));
-		updatedArray = Array.from(current);
-	} else if (operation === 'remove') {
-		const removeSet = new Set(items);
-		updatedArray = (ticket[fieldName] || []).filter(item => !removeSet.has(item));
-	}
-
-	const updateData = {
-		[fieldName]: updatedArray,
-		lastActivityAt: new Date(),
-	};
-
-	const updated = await updateTicketByChannelId(channel.id, updateData);
+	const updatedArray = buildUpdatedArray(ticket[fieldName], items, operation);
+	const updated = await updateTicketByChannelId(channel.id, { [fieldName]: updatedArray, lastActivityAt: new Date() });
 	await updateTicketSummary(channel, updated);
 	return updated;
 }
 
-async function addLabels(channel, labels) {
-	return updateTicketArray(channel, 'labels', labels, 'add');
-}
+const addLabels = (channel, labels) => updateTicketArray(channel, 'labels', labels, 'add');
+const removeLabels = (channel, labels) => updateTicketArray(channel, 'labels', labels, 'remove');
+const addAssignees = (channel, assigneeIds) => updateTicketArray(channel, 'assignees', assigneeIds, 'add');
+const removeAssignees = (channel, assigneeIds) => updateTicketArray(channel, 'assignees', assigneeIds, 'remove');
 
-async function removeLabels(channel, labels) {
-	return updateTicketArray(channel, 'labels', labels, 'remove');
-}
-
-async function addAssignees(channel, assigneeIds) {
-	return updateTicketArray(channel, 'assignees', assigneeIds, 'add');
-}
-
-async function removeAssignees(channel, assigneeIds) {
-	return updateTicketArray(channel, 'assignees', assigneeIds, 'remove');
-}
-
-module.exports = {
-	addLabels,
-	removeLabels,
-	addAssignees,
-	removeAssignees,
-};
+module.exports = { addLabels, removeLabels, addAssignees, removeAssignees };

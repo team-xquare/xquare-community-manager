@@ -8,541 +8,505 @@ const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandl
 const { sanitizeLabels } = require('@xquare/global/utils/validators');
 const { t } = require('@xquare/global/i18n');
 
+const FLAGS = { flags: MessageFlags.Ephemeral };
+const LIMITS = { min: 1, max: 20 };
+
+const TEXT = {
+	common: {
+		noPermission: t('common.noPermission'),
+		userNotFound: t('common.userNotFound'),
+		defaultValue: t('common.defaultValue'),
+		unset: t('common.unset'),
+		none: t('common.none'),
+		unassigned: t('common.unassigned'),
+		unknown: t('common.unknown'),
+	},
+	command: {
+		description: t('ticket.command.description'),
+	},
+	subcommand: {
+		open: {
+			description: t('ticket.subcommand.open.description'),
+			option: {
+				title: t('ticket.subcommand.open.option.title'),
+				description: t('ticket.subcommand.open.option.description'),
+				labels: t('ticket.subcommand.open.option.labels'),
+				assignee: t('ticket.subcommand.open.option.assignee'),
+			},
+		},
+		set: {
+			description: t('ticket.subcommand.set.description'),
+			option: {
+				channelPrefix: t('ticket.subcommand.set.option.channelPrefix'),
+				numberPad: t('ticket.subcommand.set.option.numberPad'),
+				creationChannel: t('ticket.subcommand.set.option.creationChannel'),
+				welcomeMessage: t('ticket.subcommand.set.option.welcomeMessage'),
+				uiMessage: t('ticket.subcommand.set.option.uiMessage'),
+				buttonLabel: t('ticket.subcommand.set.option.buttonLabel'),
+				defaultLabels: t('ticket.subcommand.set.option.defaultLabels'),
+				openCategory: t('ticket.subcommand.set.option.openCategory'),
+				closeCategory: t('ticket.subcommand.set.option.closeCategory'),
+			},
+		},
+		publishUi: {
+			description: t('ticket.subcommand.publishUi.description'),
+		},
+		close: {
+			description: t('ticket.subcommand.close.description'),
+			option: { reason: t('ticket.subcommand.close.option.reason') },
+		},
+		reopen: {
+			description: t('ticket.subcommand.reopen.description'),
+		},
+		info: {
+			description: t('ticket.subcommand.info.description'),
+		},
+		addLabel: {
+			description: t('ticket.subcommand.addLabel.description'),
+			option: { labels: t('ticket.subcommand.addLabel.option.labels') },
+		},
+		removeLabel: {
+			description: t('ticket.subcommand.removeLabel.description'),
+			option: { labels: t('ticket.subcommand.removeLabel.option.labels') },
+		},
+		assign: {
+			description: t('ticket.subcommand.assign.description'),
+			option: { user: t('ticket.subcommand.assign.option.user') },
+		},
+		unassign: {
+			description: t('ticket.subcommand.unassign.description'),
+			option: { user: t('ticket.subcommand.unassign.option.user') },
+		},
+		list: {
+			description: t('ticket.subcommand.list.description'),
+			option: {
+				status: t('ticket.subcommand.list.option.status'),
+				label: t('ticket.subcommand.list.option.label'),
+				assignee: t('ticket.subcommand.list.option.assignee'),
+				limit: t('ticket.subcommand.list.option.limit'),
+			},
+		},
+	},
+	response: {
+		created: channelId => t('ticket.response.created', { channelId }),
+		createError: t('ticket.response.createError'),
+		settingsUpdated: t('ticket.response.settingsUpdated'),
+		settingsUpdateError: t('ticket.response.settingsUpdateError'),
+		closeScheduled: minutes => t('ticket.response.closeScheduled', { minutes }),
+		closeError: t('ticket.response.closeError'),
+		reopenSuccess: t('ticket.response.reopenSuccess'),
+		reopenError: t('ticket.response.reopenError'),
+		infoNotFound: t('ticket.response.infoNotFound'),
+		infoError: t('ticket.response.infoError'),
+		noLabelsToAdd: t('ticket.response.noLabelsToAdd'),
+		labelsAdded: labels => t('ticket.response.labelsAdded', { labels }),
+		labelsAddError: t('ticket.response.labelsAddError'),
+		noLabelsToRemove: t('ticket.response.noLabelsToRemove'),
+		labelsRemoved: labels => t('ticket.response.labelsRemoved', { labels }),
+		labelsRemoveError: t('ticket.response.labelsRemoveError'),
+		assigneeAssigned: assignees => t('ticket.response.assigneeAssigned', { assignees }),
+		assigneeAssignError: t('ticket.response.assigneeAssignError'),
+		assigneeUnassigned: assignees => t('ticket.response.assigneeUnassigned', { assignees }),
+		assigneeUnassignError: t('ticket.response.assigneeUnassignError'),
+		noTickets: t('ticket.response.noTickets'),
+		listError: t('ticket.response.listError'),
+		publishSuccess: t('ticket.response.publishSuccess'),
+		publishError: t('ticket.response.publishError'),
+		adminOnlyClose: t('ticket.response.adminOnlyClose'),
+		adminOnlyReopen: t('ticket.response.adminOnlyReopen'),
+		adminOnlyModifyLabels: t('ticket.response.adminOnlyModifyLabels'),
+		adminOnlyAssign: t('ticket.response.adminOnlyAssign'),
+		adminOnlyUnassign: t('ticket.response.adminOnlyUnassign'),
+		adminOnlyList: t('ticket.response.adminOnlyList'),
+	},
+	settings: {
+		line: {
+			channelPrefix: value => t('ticket.settings.line.channelPrefix', { value }),
+			numberPad: value => t('ticket.settings.line.numberPad', { value }),
+			creationChannel: value => t('ticket.settings.line.creationChannel', { value }),
+			welcomeMessage: value => t('ticket.settings.line.welcomeMessage', { value }),
+			uiMessage: value => t('ticket.settings.line.uiMessage', { value }),
+			buttonLabel: value => t('ticket.settings.line.buttonLabel', { value }),
+			defaultLabels: value => t('ticket.settings.line.defaultLabels', { value }),
+			openCategory: value => t('ticket.settings.line.openCategory', { value }),
+			closeCategory: value => t('ticket.settings.line.closeCategory', { value }),
+		},
+	},
+	info: {
+		number: ticketNumber => t('ticket.info.number', { ticketNumber }),
+		title: title => t('ticket.info.title', { title }),
+		status: status => t('ticket.info.status', { status }),
+		author: userId => t('ticket.info.author', { userId }),
+		assignees: assignees => t('ticket.info.assignees', { assignees }),
+		labels: labels => t('ticket.info.labels', { labels }),
+		description: description => t('ticket.info.description', { description }),
+		closedAt: timestamp => t('ticket.info.closedAt', { timestamp }),
+		createdAt: timestamp => t('ticket.info.createdAt', { timestamp }),
+	},
+	list: {
+		item: data => t('ticket.list.item', data),
+	},
+	defaults: {
+		title: t('ticket.defaults.title'),
+	},
+};
+
+const hasAdminPermission = interaction => interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+
+const ensureAdmin = (interaction, message) => {
+	if (hasAdminPermission(interaction)) return true;
+	interaction.reply({ content: message, ...FLAGS });
+	return false;
+};
+
+const formatLabels = labels => labels?.length ? labels.map(label => `\`${label}\``).join(', ') : TEXT.common.none;
+const formatAssignees = assignees => assignees?.length ? assignees.map(id => `<@${id}>`).join(', ') : TEXT.common.unassigned;
+
+const buildOpenSubcommand = subcommand => subcommand
+	.setName('open')
+	.setDescription(TEXT.subcommand.open.description)
+	.addStringOption(option => option.setName('title').setDescription(TEXT.subcommand.open.option.title).setRequired(true))
+	.addStringOption(option => option.setName('description').setDescription(TEXT.subcommand.open.option.description).setRequired(false))
+	.addStringOption(option => option.setName('labels').setDescription(TEXT.subcommand.open.option.labels).setRequired(false))
+	.addUserOption(option => option.setName('assignee').setDescription(TEXT.subcommand.open.option.assignee).setRequired(false));
+
+const buildSetSubcommand = subcommand => subcommand
+	.setName('set')
+	.setDescription(TEXT.subcommand.set.description)
+	.addStringOption(option => option.setName('channel_prefix').setDescription(TEXT.subcommand.set.option.channelPrefix).setRequired(false))
+	.addIntegerOption(option => option.setName('number_pad').setDescription(TEXT.subcommand.set.option.numberPad).setRequired(false))
+	.addChannelOption(option => option.setName('creation_channel').setDescription(TEXT.subcommand.set.option.creationChannel).addChannelTypes(ChannelType.GuildText).setRequired(false))
+	.addStringOption(option => option.setName('welcome_message').setDescription(TEXT.subcommand.set.option.welcomeMessage).setRequired(false))
+	.addStringOption(option => option.setName('ui_message').setDescription(TEXT.subcommand.set.option.uiMessage).setRequired(false))
+	.addStringOption(option => option.setName('button_label').setDescription(TEXT.subcommand.set.option.buttonLabel).setRequired(false))
+	.addStringOption(option => option.setName('default_labels').setDescription(TEXT.subcommand.set.option.defaultLabels).setRequired(false))
+	.addStringOption(option => option.setName('open_category').setDescription(TEXT.subcommand.set.option.openCategory).setRequired(false))
+	.addStringOption(option => option.setName('close_category').setDescription(TEXT.subcommand.set.option.closeCategory).setRequired(false));
+
+const buildPublishSubcommand = subcommand => subcommand
+	.setName('publish-ui')
+	.setDescription(TEXT.subcommand.publishUi.description);
+
+const buildCloseSubcommand = subcommand => subcommand
+	.setName('close')
+	.setDescription(TEXT.subcommand.close.description)
+	.addStringOption(option => option.setName('reason').setDescription(TEXT.subcommand.close.option.reason).setRequired(false));
+
+const buildReopenSubcommand = subcommand => subcommand
+	.setName('reopen')
+	.setDescription(TEXT.subcommand.reopen.description);
+
+const buildInfoSubcommand = subcommand => subcommand
+	.setName('info')
+	.setDescription(TEXT.subcommand.info.description);
+
+const buildAddLabelSubcommand = subcommand => subcommand
+	.setName('add-label')
+	.setDescription(TEXT.subcommand.addLabel.description)
+	.addStringOption(option => option.setName('labels').setDescription(TEXT.subcommand.addLabel.option.labels).setRequired(true));
+
+const buildRemoveLabelSubcommand = subcommand => subcommand
+	.setName('remove-label')
+	.setDescription(TEXT.subcommand.removeLabel.description)
+	.addStringOption(option => option.setName('labels').setDescription(TEXT.subcommand.removeLabel.option.labels).setRequired(true));
+
+const buildAssignSubcommand = subcommand => subcommand
+	.setName('assign')
+	.setDescription(TEXT.subcommand.assign.description)
+	.addUserOption(option => option.setName('user').setDescription(TEXT.subcommand.assign.option.user).setRequired(true));
+
+const buildUnassignSubcommand = subcommand => subcommand
+	.setName('unassign')
+	.setDescription(TEXT.subcommand.unassign.description)
+	.addUserOption(option => option.setName('user').setDescription(TEXT.subcommand.unassign.option.user).setRequired(true));
+
+const buildListSubcommand = subcommand => subcommand
+	.setName('list')
+	.setDescription(TEXT.subcommand.list.description)
+	.addStringOption(option => option.setName('status').setDescription(TEXT.subcommand.list.option.status).addChoices(
+		{ name: 'open', value: 'open' },
+		{ name: 'in-progress', value: 'in-progress' },
+		{ name: 'closed', value: 'closed' },
+	).setRequired(false))
+	.addStringOption(option => option.setName('label').setDescription(TEXT.subcommand.list.option.label).setRequired(false))
+	.addUserOption(option => option.setName('assignee').setDescription(TEXT.subcommand.list.option.assignee).setRequired(false))
+	.addIntegerOption(option => option.setName('limit').setDescription(TEXT.subcommand.list.option.limit).setRequired(false));
+
+const data = new SlashCommandBuilder()
+	.setName('ticket')
+	.setDescription(TEXT.command.description)
+	.addSubcommand(buildOpenSubcommand)
+	.addSubcommand(buildSetSubcommand)
+	.addSubcommand(buildPublishSubcommand)
+	.addSubcommand(buildCloseSubcommand)
+	.addSubcommand(buildReopenSubcommand)
+	.addSubcommand(buildInfoSubcommand)
+	.addSubcommand(buildAddLabelSubcommand)
+	.addSubcommand(buildRemoveLabelSubcommand)
+	.addSubcommand(buildAssignSubcommand)
+	.addSubcommand(buildUnassignSubcommand)
+	.addSubcommand(buildListSubcommand);
+
+const applyLimit = value => Math.min(Math.max(value, LIMITS.min), LIMITS.max);
+
+const buildSettingsLines = updated => {
+	const defaultValue = TEXT.common.defaultValue;
+	const unsetValue = TEXT.common.unset;
+	const defaultLabels = updated.defaultLabels?.length ? updated.defaultLabels.map(label => `\`${label}\``).join(', ') : unsetValue;
+	const creationChannel = updated.creationChannelId ? `<#${updated.creationChannelId}>` : unsetValue;
+
+	return [
+		TEXT.response.settingsUpdated,
+		TEXT.settings.line.channelPrefix(updated.channelPrefix ?? defaultValue),
+		TEXT.settings.line.numberPad(updated.numberPadLength ?? defaultValue),
+		TEXT.settings.line.creationChannel(creationChannel),
+		TEXT.settings.line.welcomeMessage(updated.welcomeMessage ?? defaultValue),
+		TEXT.settings.line.uiMessage(updated.uiMessage ?? defaultValue),
+		TEXT.settings.line.buttonLabel(updated.buttonLabels?.create ?? defaultValue),
+		TEXT.settings.line.defaultLabels(defaultLabels),
+		TEXT.settings.line.openCategory(updated.openCategory ?? defaultValue),
+		TEXT.settings.line.closeCategory(updated.closeCategory ?? defaultValue),
+	];
+};
+
+async function handleOpen(interaction) {
+	await interaction.deferReply(FLAGS);
+	try {
+		const result = await createTicket(interaction);
+		return interaction.editReply({ content: TEXT.response.created(result.channel.id) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.createError });
+	}
+}
+
+async function handleSet(interaction) {
+	if (!ensureAdmin(interaction, TEXT.common.noPermission)) return;
+	await interaction.deferReply(FLAGS);
+
+	const channelPrefix = interaction.options.getString('channel_prefix') || undefined;
+	const numberPad = interaction.options.getInteger('number_pad') || undefined;
+	const creationChannel = interaction.options.getChannel('creation_channel') || undefined;
+	const welcomeMessage = interaction.options.getString('welcome_message') || undefined;
+	const uiMessage = interaction.options.getString('ui_message') || undefined;
+	const buttonLabel = interaction.options.getString('button_label') || undefined;
+	const defaultLabelsRaw = interaction.options.getString('default_labels');
+	const openCategory = interaction.options.getString('open_category') || undefined;
+	const closeCategory = interaction.options.getString('close_category') || undefined;
+
+	let defaultLabels = undefined;
+	if (defaultLabelsRaw !== null) {
+		try {
+			defaultLabels = sanitizeLabels(defaultLabelsRaw);
+		} catch (error) {
+			return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.settingsUpdateError });
+		}
+	}
+
+	const updatePayload = {
+		...(channelPrefix ? { channelPrefix } : {}),
+		...(numberPad ? { numberPadLength: numberPad } : {}),
+		...(creationChannel ? { creationChannelId: creationChannel.id } : {}),
+		...(welcomeMessage ? { welcomeMessage } : {}),
+		...(uiMessage ? { uiMessage } : {}),
+		...(buttonLabel ? { buttonLabels: { create: buttonLabel } } : {}),
+		...(defaultLabelsRaw !== null ? { defaultLabels } : {}),
+		...(openCategory ? { openCategory } : {}),
+		...(closeCategory ? { closeCategory } : {}),
+	};
+
+	try {
+		const updated = await updateSetting('guild', interaction.guildId, 'ticket', 'ui', updatePayload, interaction.user.id);
+		const lines = buildSettingsLines(updated);
+		return interaction.editReply({ content: lines.join('\n') });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.settingsUpdateError });
+	}
+}
+
+async function handleClose(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyClose)) return;
+	await interaction.deferReply(FLAGS);
+
+	const reason = interaction.options.getString('reason') || undefined;
+	try {
+		await require('@xquare/domain/ticket/service/ticketLifecycleService').closeTicket(interaction.channel, interaction.member, reason);
+		return interaction.editReply({ content: TEXT.response.closeScheduled(5) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.closeError });
+	}
+}
+
+async function handleReopen(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyReopen)) return;
+	await interaction.deferReply(FLAGS);
+
+	try {
+		await require('@xquare/domain/ticket/service/ticketLifecycleService').reopenTicket(interaction.channel, interaction.member);
+		return interaction.editReply({ content: TEXT.response.reopenSuccess });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.reopenError });
+	}
+}
+
+async function handleInfo(interaction) {
+	await interaction.deferReply(FLAGS);
+	try {
+		const { getTicketByChannelId } = require('@xquare/domain/ticket/service/ticketQueryService');
+		const ticket = await getTicketByChannelId(interaction.channel.id);
+		if (!ticket) return interaction.editReply({ content: TEXT.response.infoNotFound });
+
+		const labels = formatLabels(ticket.labels);
+		const assignees = formatAssignees(ticket.assignees);
+		const createdAt = ticket.createdAt?.toISOString?.() || TEXT.common.unknown;
+
+		const infoLines = [
+			TEXT.info.number(ticket.ticketNumber),
+			TEXT.info.title(ticket.title || TEXT.defaults.title),
+			TEXT.info.status(ticket.status),
+			TEXT.info.author(ticket.userId),
+			TEXT.info.assignees(assignees),
+			TEXT.info.labels(labels),
+			ticket.description ? TEXT.info.description(ticket.description) : null,
+			ticket.closedAt ? TEXT.info.closedAt(ticket.closedAt.toISOString()) : null,
+			TEXT.info.createdAt(createdAt),
+		].filter(Boolean);
+
+		return interaction.editReply({ content: infoLines.join('\n') });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.infoError });
+	}
+}
+
+async function handleAddLabel(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyModifyLabels)) return;
+	await interaction.deferReply(FLAGS);
+
+	let labels = [];
+	try {
+		labels = sanitizeLabels(interaction.options.getString('labels'));
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.labelsAddError });
+	}
+
+	if (!labels.length) return interaction.editReply({ content: TEXT.response.noLabelsToAdd });
+
+	try {
+		const ticket = await addLabels(interaction.channel, labels);
+		return interaction.editReply({ content: TEXT.response.labelsAdded(formatLabels(ticket.labels)) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.labelsAddError });
+	}
+}
+
+async function handleRemoveLabel(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyModifyLabels)) return;
+	await interaction.deferReply(FLAGS);
+
+	let labels = [];
+	try {
+		labels = sanitizeLabels(interaction.options.getString('labels'));
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.labelsRemoveError });
+	}
+
+	if (!labels.length) return interaction.editReply({ content: TEXT.response.noLabelsToRemove });
+
+	try {
+		const ticket = await removeLabels(interaction.channel, labels);
+		return interaction.editReply({ content: TEXT.response.labelsRemoved(formatLabels(ticket.labels)) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.labelsRemoveError });
+	}
+}
+
+async function handleAssign(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyAssign)) return;
+	await interaction.deferReply(FLAGS);
+
+	const user = interaction.options.getUser('user');
+	if (!user) return interaction.editReply({ content: TEXT.common.userNotFound });
+
+	try {
+		const ticket = await addAssignees(interaction.channel, [user.id]);
+		return interaction.editReply({ content: TEXT.response.assigneeAssigned(formatAssignees(ticket.assignees)) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.assigneeAssignError });
+	}
+}
+
+async function handleUnassign(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyUnassign)) return;
+	await interaction.deferReply(FLAGS);
+
+	const user = interaction.options.getUser('user');
+	if (!user) return interaction.editReply({ content: TEXT.common.userNotFound });
+
+	try {
+		const ticket = await removeAssignees(interaction.channel, [user.id]);
+		return interaction.editReply({ content: TEXT.response.assigneeUnassigned(formatAssignees(ticket.assignees)) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.assigneeUnassignError });
+	}
+}
+
+async function handleList(interaction) {
+	if (!ensureAdmin(interaction, TEXT.response.adminOnlyList)) return;
+	await interaction.deferReply(FLAGS);
+
+	const status = interaction.options.getString('status') || undefined;
+	const label = interaction.options.getString('label') || undefined;
+	const assignee = interaction.options.getUser('assignee') || undefined;
+	const limit = applyLimit(interaction.options.getInteger('limit') || 10);
+
+	try {
+		const tickets = await listTickets({ guildId: interaction.guildId, status, label, assignee: assignee?.id }, { limit });
+		if (!tickets.length) return interaction.editReply({ content: TEXT.response.noTickets });
+
+		const lines = tickets.map(ticket => TEXT.list.item({
+			ticketNumber: ticket.ticketNumber,
+			status: ticket.status,
+			title: ticket.title || TEXT.defaults.title,
+			labels: formatLabels(ticket.labels),
+			assignees: formatAssignees(ticket.assignees),
+			channelId: ticket.channelId,
+		}));
+
+		return interaction.editReply({ content: lines.join('\n') });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.listError });
+	}
+}
+
+async function handlePublishUi(interaction) {
+	if (!ensureAdmin(interaction, TEXT.common.noPermission)) return;
+	await interaction.deferReply(FLAGS);
+
+	try {
+		await publishTicketUi(interaction.guild, interaction.user);
+		return interaction.editReply({ content: TEXT.response.publishSuccess });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.publishError });
+	}
+}
+
+const HANDLERS = {
+	open: handleOpen,
+	set: handleSet,
+	close: handleClose,
+	reopen: handleReopen,
+	info: handleInfo,
+	'add-label': handleAddLabel,
+	'remove-label': handleRemoveLabel,
+	assign: handleAssign,
+	unassign: handleUnassign,
+	list: handleList,
+	'publish-ui': handlePublishUi,
+};
+
 module.exports = {
-	data: new SlashCommandBuilder()
-		.setName('ticket')
-		.setDescription(t('ticket.command.description'))
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('open')
-				.setDescription(t('ticket.subcommand.open.description'))
-				.addStringOption(option =>
-					option.setName('title')
-						.setDescription(t('ticket.subcommand.open.option.title'))
-						.setRequired(true))
-				.addStringOption(option =>
-					option.setName('description')
-						.setDescription(t('ticket.subcommand.open.option.description'))
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('labels')
-						.setDescription(t('ticket.subcommand.open.option.labels'))
-						.setRequired(false))
-				.addUserOption(option =>
-					option.setName('assignee')
-						.setDescription(t('ticket.subcommand.open.option.assignee'))
-						.setRequired(false))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('set')
-				.setDescription(t('ticket.subcommand.set.description'))
-				.addStringOption(option =>
-					option.setName('channel_prefix')
-						.setDescription(t('ticket.subcommand.set.option.channelPrefix'))
-						.setRequired(false))
-				.addIntegerOption(option =>
-					option.setName('number_pad')
-						.setDescription(t('ticket.subcommand.set.option.numberPad'))
-						.setRequired(false))
-				.addChannelOption(option =>
-					option.setName('creation_channel')
-						.setDescription(t('ticket.subcommand.set.option.creationChannel'))
-						.addChannelTypes(ChannelType.GuildText)
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('welcome_message')
-						.setDescription(t('ticket.subcommand.set.option.welcomeMessage'))
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('ui_message')
-						.setDescription(t('ticket.subcommand.set.option.uiMessage'))
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('button_label')
-						.setDescription(t('ticket.subcommand.set.option.buttonLabel'))
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('default_labels')
-						.setDescription(t('ticket.subcommand.set.option.defaultLabels'))
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('open_category')
-						.setDescription(t('ticket.subcommand.set.option.openCategory'))
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('close_category')
-						.setDescription(t('ticket.subcommand.set.option.closeCategory'))
-						.setRequired(false))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('publish-ui')
-				.setDescription(t('ticket.subcommand.publishUi.description'))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('close')
-				.setDescription(t('ticket.subcommand.close.description'))
-				.addStringOption(option =>
-					option.setName('reason')
-						.setDescription(t('ticket.subcommand.close.option.reason'))
-						.setRequired(false))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('reopen')
-				.setDescription(t('ticket.subcommand.reopen.description'))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('info')
-				.setDescription(t('ticket.subcommand.info.description'))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('add-label')
-				.setDescription(t('ticket.subcommand.addLabel.description'))
-				.addStringOption(option =>
-					option.setName('labels')
-						.setDescription(t('ticket.subcommand.addLabel.option.labels'))
-						.setRequired(true))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('remove-label')
-				.setDescription(t('ticket.subcommand.removeLabel.description'))
-				.addStringOption(option =>
-					option.setName('labels')
-						.setDescription(t('ticket.subcommand.removeLabel.option.labels'))
-						.setRequired(true))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('assign')
-				.setDescription(t('ticket.subcommand.assign.description'))
-				.addUserOption(option =>
-					option.setName('user')
-						.setDescription(t('ticket.subcommand.assign.option.user'))
-						.setRequired(true))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('unassign')
-				.setDescription(t('ticket.subcommand.unassign.description'))
-				.addUserOption(option =>
-					option.setName('user')
-						.setDescription(t('ticket.subcommand.unassign.option.user'))
-						.setRequired(true))
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('list')
-				.setDescription(t('ticket.subcommand.list.description'))
-				.addStringOption(option =>
-					option.setName('status')
-						.setDescription(t('ticket.subcommand.list.option.status'))
-						.addChoices(
-							{ name: 'open', value: 'open' },
-							{ name: 'in-progress', value: 'in-progress' },
-							{ name: 'closed', value: 'closed' },
-						)
-						.setRequired(false))
-				.addStringOption(option =>
-					option.setName('label')
-						.setDescription(t('ticket.subcommand.list.option.label'))
-						.setRequired(false))
-				.addUserOption(option =>
-					option.setName('assignee')
-						.setDescription(t('ticket.subcommand.list.option.assignee'))
-						.setRequired(false))
-				.addIntegerOption(option =>
-					option.setName('limit')
-						.setDescription(t('ticket.subcommand.list.option.limit'))
-						.setRequired(false))
-		),
+	data,
 	async execute(interaction) {
-		const subcommand = interaction.options.getSubcommand();
-
-		if (subcommand === 'open') {
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-			try {
-				const result = await createTicket(interaction);
-
-				await interaction.editReply({
-					content: t('ticket.response.created', { channelId: result.channel.id }),
-				});
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.createError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'set') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('common.noPermission'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-			const channelPrefix = interaction.options.getString('channel_prefix') || undefined;
-			const numberPad = interaction.options.getInteger('number_pad') || undefined;
-			const creationChannel = interaction.options.getChannel('creation_channel') || undefined;
-			const welcomeMessage = interaction.options.getString('welcome_message') || undefined;
-			const uiMessage = interaction.options.getString('ui_message') || undefined;
-		const buttonLabel = interaction.options.getString('button_label') || undefined;
-		const defaultLabelsRaw = interaction.options.getString('default_labels') || undefined;
-		const hasDefaultLabels = defaultLabelsRaw !== undefined;
-		let defaultLabels = undefined;
-		if (hasDefaultLabels) {
-			try {
-				defaultLabels = sanitizeLabels(defaultLabelsRaw);
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.settingsUpdateError'),
-				});
-				return;
-			}
-		}
-			const openCategory = interaction.options.getString('open_category') || undefined;
-			const closeCategory = interaction.options.getString('close_category') || undefined;
-
-			const updatePayload = {};
-			if (channelPrefix) updatePayload.channelPrefix = channelPrefix;
-			if (numberPad) updatePayload.numberPadLength = numberPad;
-			if (creationChannel) updatePayload.creationChannelId = creationChannel.id;
-			if (welcomeMessage) updatePayload.welcomeMessage = welcomeMessage;
-			if (uiMessage) updatePayload.uiMessage = uiMessage;
-			if (buttonLabel) updatePayload.buttonLabels = { create: buttonLabel };
-			if (hasDefaultLabels) updatePayload.defaultLabels = defaultLabels;
-			if (openCategory) updatePayload.openCategory = openCategory;
-			if (closeCategory) updatePayload.closeCategory = closeCategory;
-
-			try {
-				const updated = await updateSetting('guild', interaction.guildId, 'ticket', 'ui', updatePayload, interaction.user.id);
-				const defaultValue = t('common.defaultValue');
-				const unsetValue = t('common.unset');
-				const defaultLabelsText = updated.defaultLabels?.length
-					? updated.defaultLabels.map(label => `\`${label}\``).join(', ')
-					: unsetValue;
-
-				const creationChannelText = updated.creationChannelId
-					? `<#${updated.creationChannelId}>`
-					: unsetValue;
-
-				const lines = [
-					t('ticket.response.settingsUpdated'),
-					t('ticket.settings.line.channelPrefix', { value: updated.channelPrefix ?? defaultValue }),
-					t('ticket.settings.line.numberPad', { value: updated.numberPadLength ?? defaultValue }),
-					t('ticket.settings.line.creationChannel', { value: creationChannelText }),
-					t('ticket.settings.line.welcomeMessage', { value: updated.welcomeMessage ?? defaultValue }),
-					t('ticket.settings.line.uiMessage', { value: updated.uiMessage ?? defaultValue }),
-					t('ticket.settings.line.buttonLabel', { value: updated.buttonLabels?.create ?? defaultValue }),
-					t('ticket.settings.line.defaultLabels', { value: defaultLabelsText }),
-					t('ticket.settings.line.openCategory', { value: updated.openCategory ?? defaultValue }),
-					t('ticket.settings.line.closeCategory', { value: updated.closeCategory ?? defaultValue }),
-				];
-
-				await interaction.editReply({ content: lines.join('\n') });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.settingsUpdateError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'close') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyClose'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			const reason = interaction.options.getString('reason') || undefined;
-
-			try {
-				await require('@xquare/domain/ticket/service/ticketLifecycleService').closeTicket(
-					interaction.channel,
-					interaction.member,
-					reason
-				);
-				await interaction.editReply({ content: t('ticket.response.closeScheduled', { minutes: 5 }) });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.closeError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'reopen') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyReopen'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			try {
-				await require('@xquare/domain/ticket/service/ticketLifecycleService').reopenTicket(
-					interaction.channel,
-					interaction.member
-				);
-				await interaction.editReply({ content: t('ticket.response.reopenSuccess') });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.reopenError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'info') {
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			try {
-				const { getTicketByChannelId } = require('@xquare/domain/ticket/service/ticketQueryService');
-				const ticket = await getTicketByChannelId(interaction.channel.id);
-				if (!ticket) {
-					await interaction.editReply({ content: t('ticket.response.infoNotFound') });
-					return;
-				}
-
-				const defaultTitle = t('ticket.defaults.title');
-				const labelsText = ticket.labels?.length ? ticket.labels.map(label => `\`${label}\``).join(', ') : t('common.none');
-				const assigneesText = ticket.assignees?.length ? ticket.assignees.map(id => `<@${id}>`).join(', ') : t('common.unassigned');
-				const createdAtText = ticket.createdAt?.toISOString?.() || t('common.unknown');
-
-				const infoLines = [
-					t('ticket.info.number', { ticketNumber: ticket.ticketNumber }),
-					t('ticket.info.title', { title: ticket.title || defaultTitle }),
-					t('ticket.info.status', { status: ticket.status }),
-					t('ticket.info.author', { userId: ticket.userId }),
-					t('ticket.info.assignees', { assignees: assigneesText }),
-					t('ticket.info.labels', { labels: labelsText }),
-					ticket.description ? t('ticket.info.description', { description: ticket.description }) : null,
-					ticket.closedAt ? t('ticket.info.closedAt', { timestamp: ticket.closedAt.toISOString() }) : null,
-					t('ticket.info.createdAt', { timestamp: createdAtText }),
-				].filter(Boolean);
-
-				await interaction.editReply({ content: infoLines.join('\n') });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.infoError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'add-label') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyModifyLabels'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			const labelsRaw = interaction.options.getString('labels');
-			let labels = [];
-
-			try {
-				labels = sanitizeLabels(labelsRaw);
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.labelsAddError'),
-				});
-				return;
-			}
-
-			if (!labels.length) {
-				await interaction.editReply({ content: t('ticket.response.noLabelsToAdd') });
-				return;
-			}
-
-			try {
-				const ticket = await addLabels(interaction.channel, labels);
-				const labelText = ticket.labels?.length ? ticket.labels.map(l => `\`${l}\``).join(', ') : t('common.none');
-				await interaction.editReply({ content: t('ticket.response.labelsAdded', { labels: labelText }) });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.labelsAddError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'remove-label') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyModifyLabels'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			const labelsRaw = interaction.options.getString('labels');
-			let labels = [];
-
-			try {
-				labels = sanitizeLabels(labelsRaw);
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.labelsRemoveError'),
-				});
-				return;
-			}
-
-			if (!labels.length) {
-				await interaction.editReply({ content: t('ticket.response.noLabelsToRemove') });
-				return;
-			}
-
-			try {
-				const ticket = await removeLabels(interaction.channel, labels);
-				const labelText = ticket.labels?.length ? ticket.labels.map(l => `\`${l}\``).join(', ') : t('common.none');
-				await interaction.editReply({ content: t('ticket.response.labelsRemoved', { labels: labelText }) });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.labelsRemoveError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'assign') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyAssign'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			const user = interaction.options.getUser('user');
-			if (!user) {
-				await interaction.editReply({ content: t('common.userNotFound') });
-				return;
-			}
-			try {
-				const ticket = await addAssignees(interaction.channel, [user.id]);
-				const assigneeText = ticket.assignees?.length
-					? ticket.assignees.map(id => `<@${id}>`).join(', ')
-					: t('common.unassigned');
-				await interaction.editReply({ content: t('ticket.response.assigneeAssigned', { assignees: assigneeText }) });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.assigneeAssignError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'unassign') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyUnassign'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			const user = interaction.options.getUser('user');
-			if (!user) {
-				await interaction.editReply({ content: t('common.userNotFound') });
-				return;
-			}
-			try {
-				const ticket = await removeAssignees(interaction.channel, [user.id]);
-				const assigneeText = ticket.assignees?.length
-					? ticket.assignees.map(id => `<@${id}>`).join(', ')
-					: t('common.unassigned');
-				await interaction.editReply({ content: t('ticket.response.assigneeUnassigned', { assignees: assigneeText }) });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.assigneeUnassignError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'list') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('ticket.response.adminOnlyList'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-			const status = interaction.options.getString('status') || undefined;
-			const label = interaction.options.getString('label') || undefined;
-			const assignee = interaction.options.getUser('assignee') || undefined;
-			const limitRaw = interaction.options.getInteger('limit') || 10;
-			const limit = Math.min(Math.max(limitRaw, 1), 20);
-
-			try {
-				const tickets = await listTickets(
-					{
-						guildId: interaction.guildId,
-						status,
-						label,
-						assignee: assignee?.id,
-					},
-					{ limit }
-				);
-
-				if (!tickets.length) {
-					await interaction.editReply({ content: t('ticket.response.noTickets') });
-					return;
-				}
-
-				const lines = tickets.map(ticket => {
-					const labelsText = ticket.labels?.length ? ticket.labels.map(l => `\`${l}\``).join(', ') : t('common.none');
-					const assigneesText = ticket.assignees?.length ? ticket.assignees.map(id => `<@${id}>`).join(', ') : t('common.unassigned');
-					const title = ticket.title || t('ticket.defaults.title');
-					return t('ticket.list.item', {
-						ticketNumber: ticket.ticketNumber,
-						status: ticket.status,
-						title,
-						labels: labelsText,
-						assignees: assigneesText,
-						channelId: ticket.channelId,
-					});
-				});
-
-				await interaction.editReply({ content: lines.join('\n') });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.listError'),
-				});
-			}
-			return;
-		}
-
-		if (subcommand === 'publish-ui') {
-			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
-				await interaction.reply({ content: t('common.noPermission'), flags: MessageFlags.Ephemeral });
-				return;
-			}
-
-			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-			try {
-				await publishTicketUi(interaction.guild, interaction.user);
-				await interaction.editReply({ content: t('ticket.response.publishSuccess') });
-			} catch (error) {
-				await handleError(wrapUnexpected(error), {
-					interaction,
-					userMessage: t('ticket.response.publishError'),
-				});
-			}
-		}
+		const handler = HANDLERS[interaction.options.getSubcommand()];
+		if (handler) return handler(interaction);
 	},
 };

@@ -4,30 +4,28 @@ const UnexpectedError = require('./errors/UnexpectedError');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { t } = require('@xquare/global/i18n');
 
-function resolvePolicy(err) {
-	if (policies[err.name]) return policies[err.name];
-	return policies.UnexpectedError;
-}
+const LOG = {
+	replyFailed: 'Failed to send error reply',
+	defaultError: 'Unhandled error',
+};
+
+const resolvePolicy = err => policies[err?.name] || policies.UnexpectedError;
 
 function buildUserMessage(err, policy, overrideMessage) {
 	if (overrideMessage) return overrideMessage;
-	if (err.expose && err.userMessage) return err.userMessage;
-	if (policy.expose && err.userMessage) return err.userMessage;
-	return policy.userMessage || t('errors.generic');
+	if (err?.expose && err.userMessage) return err.userMessage;
+	if (policy?.expose && err?.userMessage) return err.userMessage;
+	return policy?.userMessage || t('errors.generic');
 }
 
 async function replySafe(target, content) {
 	try {
 		if (!target) return;
-		if (target.deferred && !target.replied) {
-			await target.editReply({ content, flags: MessageFlags.Ephemeral });
-		} else if (target.replied) {
-			await target.followUp({ content, flags: MessageFlags.Ephemeral });
-		} else {
-			await target.reply({ content, flags: MessageFlags.Ephemeral });
-		}
+		if (target.deferred && !target.replied) return target.editReply({ content, flags: MessageFlags.Ephemeral });
+		if (target.replied) return target.followUp({ content, flags: MessageFlags.Ephemeral });
+		return target.reply({ content, flags: MessageFlags.Ephemeral });
 	} catch (replyError) {
-		logger.error('Failed to send error reply', { error: replyError });
+		logger.error(LOG.replyFailed, { error: replyError });
 	}
 }
 
@@ -35,24 +33,20 @@ async function handleError(err, context = {}) {
 	const { interaction, message, userMessage } = context;
 	const policy = resolvePolicy(err);
 	const safeMessage = buildUserMessage(err, policy, userMessage);
+	const logMessage = err?.logMessage || policy?.logMessage || err?.name || LOG.defaultError;
 
 	const logPayload = {
-		message: err.logMessage || err.message,
-		metadata: err.metadata || {},
-		stack: err.stack,
+		message: logMessage,
+		errorMessage: err?.message,
+		metadata: err?.metadata || {},
+		stack: err?.stack,
 	};
 
-	const logFn = logger[policy.logLevel] || logger.error;
+	const logFn = logger[policy?.logLevel] || logger.error;
 	logFn(logPayload);
 
-	if (interaction) {
-		await replySafe(interaction, safeMessage);
-		return;
-	}
-
-	if (message && message.reply) {
-		await replySafe(message, safeMessage);
-	}
+	if (interaction) return replySafe(interaction, safeMessage);
+	if (message?.reply) return replySafe(message, safeMessage);
 }
 
 function wrapUnexpected(err) {
@@ -63,6 +57,7 @@ function wrapUnexpected(err) {
 			originalName: err?.name,
 			originalStack: err?.stack,
 		},
+		logMessage: policies.UnexpectedError?.logMessage || 'UnexpectedError',
 	});
 	if (err?.stack) {
 		wrapped.stack = err.stack;
