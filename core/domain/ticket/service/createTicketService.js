@@ -1,15 +1,21 @@
 const { ChannelType, PermissionsBitField } = require('discord.js');
-const { findLastTicket } = require('@xquare/domain/ticket/repository/findLastTicketRepository');
 const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
 const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
 const { getOrCreateCategory } = require('@xquare/global/utils/category');
+const Counter = require('@xquare/domain/ticket/counter');
+const { sanitizeString, sanitizeLabels } = require('@xquare/global/utils/validators');
+const { t } = require('@xquare/global/i18n');
 
 async function getNextTicketNumber() {
-	const lastTicket = await findLastTicket();
-	return lastTicket ? lastTicket.ticketNumber + 1 : 1;
+	const counter = await Counter.findByIdAndUpdate(
+		'ticketNumber',
+		{ $inc: { sequence: 1 } },
+		{ new: true, upsert: true }
+	);
+	return counter.sequence;
 }
 
 async function createTicketChannel(guild, user, client, ticketNumber, settings) {
@@ -71,15 +77,15 @@ async function createTicket(interaction, payload = {}) {
   if (missingFields.length) {
     const missingFieldsFormatted = missingFields.map((field) => field.displayName).join(', ');
     throw new ValidationError(
-      `Ticket settings are incomplete. Configure missing fields: ${missingFieldsFormatted}`
+      t('ticket.errors.settingsIncomplete', { fields: missingFieldsFormatted })
     );
   }
 
-	const title =
+	const titleRaw =
 		payload.title
 		|| interaction.options?.getString?.('title')
-		|| '제목 없음';
-	const description =
+		|| t('ticket.defaults.title');
+	const descriptionRaw =
 		payload.description
 		|| interaction.options?.getString?.('description')
 		|| '';
@@ -90,10 +96,11 @@ async function createTicket(interaction, payload = {}) {
 	const assignee =
 		payload.assignee
 		|| interaction.options?.getUser?.('assignee');
-	const inputLabels = labelsRaw
-		.split(',')
-		.map(label => label.trim())
-		.filter(Boolean);
+
+	const title = sanitizeString(titleRaw, 'Title', 200);
+	const description = sanitizeString(descriptionRaw, 'Description', 2000);
+	const inputLabels = sanitizeLabels(labelsRaw);
+
 	const defaultLabels = Array.isArray(settings.defaultLabels)
 		? settings.defaultLabels
 		: (typeof settings.defaultLabels === 'string'
@@ -104,7 +111,7 @@ async function createTicket(interaction, payload = {}) {
 
 	const rawWelcomeText = settings.welcomeMessage
 		?.replace('{user}', `${interaction.user}`)
-		|| `${interaction.user} 님의 티켓이 생성되었습니다. 문의 내용을 작성해주세요.`;
+		|| t('ticket.defaults.welcome', { user: interaction.user });
 	const welcomeText = rawWelcomeText.replace(/\\n/g, '\n');
 
 	const nextTicketNumber = await getNextTicketNumber();
@@ -133,7 +140,7 @@ async function createTicket(interaction, payload = {}) {
 
 	const textLines = [welcomeText];
 	if (description) {
-		textLines.push(`설명: ${description}`);
+		textLines.push(t('ticket.message.descriptionLine', { description }));
 	}
 	await ticketChannel.send({ content: textLines.join('\n') });
 

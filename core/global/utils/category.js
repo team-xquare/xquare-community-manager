@@ -1,10 +1,10 @@
 const { ChannelType } = require('discord.js');
 
-export async function getOrCreateCategory(guild, categoryName) {
+async function getOrCreateCategory(guild, categoryName) {
 	await guild.channels.fetch();
 	const category = guild.channels.cache.find(channel =>
 		channel.type === ChannelType.GuildCategory
-		  && channel.name.toLowerCase() === categoryName
+		  && channel.name.toLowerCase() === categoryName.toLowerCase()
 	);
 
 	if (category) {
@@ -16,3 +16,5 @@ export async function getOrCreateCategory(guild, categoryName) {
 		type: ChannelType.GuildCategory,
 	});
 }
+
+module.exports = { getOrCreateCategory };

@@ -14,7 +14,7 @@ module.exports = {
 		logger.info('╚═╝  ╚═╝ ╚══▀▀═╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝');
 		logger.info(`Ready! Logged in as ${client.user.tag}`);
 		bootstrapScheduledCloses(client).catch(error => {
-			logger.error(`Failed to bootstrap scheduled closes: ${error}`);
+			logger.error('Failed to bootstrap scheduled closes', { error });
 		});
 	},
 };

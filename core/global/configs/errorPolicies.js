@@ -1,27 +1,29 @@
+const { t } = require('@xquare/global/i18n');
+
 const policies = {
 	ValidationError: {
 		logLevel: 'warn',
-		userMessage: '입력값을 확인해주세요.',
+		userMessage: t('errors.validation'),
 		expose: true,
 	},
 	NotFoundError: {
 		logLevel: 'warn',
-		userMessage: '대상을 찾을 수 없습니다.',
+		userMessage: t('errors.notFound'),
 		expose: true,
 	},
 	ConflictError: {
 		logLevel: 'warn',
-		userMessage: '이미 처리된 요청입니다.',
+		userMessage: t('errors.conflict'),
 		expose: true,
 	},
 	ExternalServiceError: {
 		logLevel: 'error',
-		userMessage: '외부 서비스 처리 중 오류가 발생했습니다.',
+		userMessage: t('errors.external'),
 		expose: false,
 	},
 	UnexpectedError: {
 		logLevel: 'error',
-		userMessage: '알 수 없는 오류가 발생했습니다.',
+		userMessage: t('errors.unexpected'),
 		expose: false,
 	},
 };

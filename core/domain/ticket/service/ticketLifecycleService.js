@@ -8,13 +8,14 @@ const logger = require('@xquare/global/utils/loggers/logger');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
 const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
+const { t } = require('@xquare/global/i18n');
 
 const pendingCloseTimers = new Map();
 
 function assertAdmin(actorMember) {
 	const hasManageGuild = actorMember?.permissions?.has?.(PermissionsBitField.Flags.ManageGuild);
 	if (!hasManageGuild) {
-		throw new ValidationError('관리자만 티켓을 닫을 수 있습니다.', { expose: true });
+		throw new ValidationError(t('ticket.errors.adminOnlyClose'), { expose: true });
 	}
 }
 
@@ -34,16 +35,16 @@ async function finalizeClose(channel, ticket, actorId, reason) {
 		const baseName = channel.name.replace(/^closed-/, '');
 		await channel.setName(`closed-${baseName}`.slice(0, 100));
 	} catch (err) {
-		logger.warn(`Failed to rename closed ticket channel ${channel.id}: ${err}`);
+		logger.warn('Failed to rename closed ticket channel', { error: err, channelId: channel.id });
 	}
 
-  try {
-    const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
-    const newCategory = await getOrCreateCategory(channel.guild, settings.closeCategory);
-    await channel.setParent(newCategory.id);
-  } catch (err) {
-    logger.warn(`Failed to set category of ticket channel ${channel.id} to ${newCategory.id}: ${err}`);
-  }
+	try {
+		const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
+		const newCategory = await getOrCreateCategory(channel.guild, settings.closeCategory);
+		await channel.setParent(newCategory.id);
+	} catch (err) {
+		logger.warn('Failed to set category of ticket channel', { error: err, channelId: channel.id });
+	}
 
 	try {
 		await channel.permissionOverwrites.edit(ticket.userId, {
@@ -52,11 +53,11 @@ async function finalizeClose(channel, ticket, actorId, reason) {
 			ReadMessageHistory: true,
 		});
 	} catch (err) {
-		logger.warn(`Failed to update permissions for closed ticket ${ticket.id}: ${err}`);
+		logger.warn('Failed to update permissions for closed ticket', { error: err, channelId: channel.id, userId: ticket.userId });
 	}
 
-	const reasonText = reason ? `\n이유: ${reason}` : '';
-	await channel.send(`티켓이 종료되었습니다. 요청자: <@${ticket.userId}>${reasonText}`);
+	const reasonText = reason ? t('ticket.lifecycle.reasonLine', { reason }) : '';
+	await channel.send(t('ticket.lifecycle.closed', { userId: ticket.userId, reason: reasonText }));
 	return updated;
 }
 
@@ -83,7 +84,7 @@ async function handleScheduledClose(channel, reason) {
 
 		await finalizeClose(channel, ticket, ticket.closeScheduledBy || null, reason);
 	} catch (err) {
-		logger.error(`Failed to finalize ticket close for channel ${channel.id}: ${err}`);
+		logger.error('Failed to finalize ticket close for channel', { error: err, channelId: channel.id });
 	} finally {
 		pendingCloseTimers.delete(channel.id);
 	}
@@ -111,16 +112,16 @@ async function closeTicket(channel, actorMember, reason, options = {}) {
 
 	const ticket = await findTicketByChannelId(channel.id);
 	if (!ticket) {
-		throw new NotFoundError('티켓을 찾을 수 없습니다.');
+		throw new NotFoundError(t('ticket.errors.ticketNotFound'));
 	}
 
 	if (ticket.status === 'closed') {
-		throw new ValidationError('이미 종료된 티켓입니다.');
+		throw new ValidationError(t('ticket.errors.alreadyClosed'));
 	}
 
 	const now = Date.now();
 	if (ticket.closeScheduledAt && ticket.closeScheduledAt.getTime() > now) {
-		throw new ValidationError('이미 종료 대기 중입니다.');
+		throw new ValidationError(t('ticket.errors.alreadyClosing'));
 	}
 
 	const closesAt = new Date(now + delayMs);
@@ -130,7 +131,9 @@ async function closeTicket(channel, actorMember, reason, options = {}) {
 	});
 	await updateTicketSummary(channel, updated);
 
-	await channel.send(`티켓 종료 명령이 접수되었습니다. 5분 후 닫힙니다.${reason ? `\n이유: ${reason}` : ''}`);
+	const reasonText = reason ? t('ticket.lifecycle.reasonLine', { reason }) : '';
+	const minutes = Math.max(1, Math.round(delayMs / 60000));
+	await channel.send(t('ticket.lifecycle.closeScheduled', { minutes, reason: reasonText }));
 
 	scheduleCloseTimer(channel, closesAt, reason);
 
@@ -142,7 +145,7 @@ async function reopenTicket(channel, actorMember) {
 
 	const ticket = await findTicketByChannelId(channel.id);
 	if (!ticket) {
-		throw new NotFoundError('티켓을 찾을 수 없습니다.');
+		throw new NotFoundError(t('ticket.errors.ticketNotFound'));
 	}
 
 	cancelScheduledClose(channel.id);
@@ -162,16 +165,18 @@ async function reopenTicket(channel, actorMember) {
 		const targetName = ticket.originalChannelName || channel.name.replace(/^closed-/, '');
 		await channel.setName(targetName.slice(0, 100));
 	} catch (err) {
-		logger.warn(`Failed to restore ticket channel name ${channel.id}: ${err}`);
+		logger.warn('Failed to restore ticket channel name', { error: err, channelId: channel.id });
 	}
 
-  try {
-    const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
-    const newCategory = await getOrCreateCategory(channel.guild, settings.openCategory);
-    await channel.setParent(newCategory.id);
-  } catch (err) {
-    logger.warn(`Failed to set category of ticket channel ${channel.id} to ${newCategory.id}: ${err}`);
-  }
+	let targetCategoryId = null;
+	try {
+		const settings = await getSetting('guild', channel.guild.id, 'ticket', 'ui');
+		const newCategory = await getOrCreateCategory(channel.guild, settings.openCategory);
+		targetCategoryId = newCategory.id;
+		await channel.setParent(newCategory.id);
+	} catch (err) {
+		logger.warn('Failed to set category of ticket channel', { error: err, channelId: channel.id, categoryId: targetCategoryId });
+	}
 
 	try {
 		await channel.permissionOverwrites.edit(ticket.userId, {
@@ -180,10 +185,10 @@ async function reopenTicket(channel, actorMember) {
 			ReadMessageHistory: true,
 		});
 	} catch (err) {
-		logger.warn(`Failed to restore permissions for reopened ticket ${ticket.id}: ${err}`);
+		logger.warn('Failed to restore permissions for reopened ticket', { error: err, ticketId: ticket.id });
 	}
 
-	await channel.send(`티켓이 다시 열렸습니다. 요청자: <@${ticket.userId}>`);
+	await channel.send(t('ticket.lifecycle.reopened', { userId: ticket.userId }));
 	return updated;
 }
 
@@ -193,17 +198,44 @@ async function bootstrapScheduledCloses(client) {
 		status: { $ne: 'closed' },
 	});
 
+	const channelIds = [...new Set(tickets.map(ticket => ticket.channelId).filter(Boolean))];
+	const channelMap = new Map();
+
+	for (const channelId of channelIds) {
+		const cached = client.channels.cache.get(channelId);
+		if (cached) {
+			channelMap.set(channelId, cached);
+		}
+	}
+
+	const fetchIds = channelIds.filter(channelId => !channelMap.has(channelId));
+	const fetchResults = await Promise.allSettled(
+		fetchIds.map(channelId => client.channels.fetch(channelId))
+	);
+
+	fetchResults.forEach((result, index) => {
+		const channelId = fetchIds[index];
+		if (result.status === 'fulfilled' && result.value) {
+			channelMap.set(channelId, result.value);
+		} else {
+			logger.warn('Failed to find channel for scheduled close', {
+				channelId,
+				error: result.status === 'rejected' ? result.reason : null,
+			});
+		}
+	});
+
 	for (const ticket of tickets) {
 		try {
-			const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+			const channel = channelMap.get(ticket.channelId);
 			if (!channel) {
-				logger.warn(`Failed to find channel for scheduled close: ${ticket.channelId}`);
+				logger.warn('Failed to find channel for scheduled close', { channelId: ticket.channelId });
 				continue;
 			}
 
 			scheduleCloseTimer(channel, ticket.closeScheduledAt, null);
 		} catch (err) {
-			logger.error(`Failed to schedule close for ticket ${ticket.id}: ${err}`);
+			logger.error('Failed to schedule close for ticket', { error: err, ticketId: ticket.id });
 		}
 	}
 }

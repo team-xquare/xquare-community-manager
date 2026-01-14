@@ -79,4 +79,11 @@ const ticketSchema = new mongoose.Schema({
 	},
 });
 
+ticketSchema.index({ guildId: 1 });
+ticketSchema.index({ status: 1 });
+ticketSchema.index({ labels: 1 });
+ticketSchema.index({ assignees: 1 });
+ticketSchema.index({ guildId: 1, status: 1 });
+ticketSchema.index({ closeScheduledAt: 1 }, { sparse: true });
+
 module.exports = mongoose.model('tbl_ticket', ticketSchema);

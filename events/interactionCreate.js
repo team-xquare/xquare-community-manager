@@ -2,6 +2,7 @@ const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, Ac
 const logger = require('@xquare/global/utils/loggers/logger');
 const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandler');
 const { createTicket } = require('@xquare/domain/ticket/service/createTicketService');
+const { t } = require('@xquare/global/i18n');
 
 module.exports = {
 	name: Events.InteractionCreate,
@@ -11,17 +12,17 @@ module.exports = {
 				try {
 					const modal = new ModalBuilder()
 						.setCustomId('ticket:open-modal')
-						.setTitle('티켓 생성');
+						.setTitle(t('ticket.modal.title'));
 
 					const titleInput = new TextInputBuilder()
 						.setCustomId('ticket:title')
-						.setLabel('제목')
+						.setLabel(t('ticket.modal.field.title'))
 						.setStyle(TextInputStyle.Short)
 						.setRequired(true);
 
 					const descriptionInput = new TextInputBuilder()
 						.setCustomId('ticket:description')
-						.setLabel('설명')
+						.setLabel(t('ticket.modal.field.description'))
 						.setStyle(TextInputStyle.Paragraph)
 						.setRequired(false);
 
@@ -45,7 +46,9 @@ module.exports = {
 					const title = interaction.fields.getTextInputValue('ticket:title');
 					const description = interaction.fields.getTextInputValue('ticket:description');
 					const result = await createTicket(interaction, { title, description });
-					await interaction.editReply({ content: `티켓이 생성되었습니다: <#${result.channel.id}>` });
+					await interaction.editReply({
+						content: t('ticket.response.created', { channelId: result.channel.id }),
+					});
 				} catch (error) {
 					await handleError(wrapUnexpected(error), { interaction });
 				}

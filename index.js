@@ -6,6 +6,15 @@ const logger = require('@xquare/global/utils/loggers/logger');
 const connectDB = require('@xquare/global/configs/database');
 require('dotenv').config();
 
+const requiredEnvVars = ['DISCORD_BOT_TOKEN', 'CLIENT_ID', 'MONGODB_URI'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+	console.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+	console.error('Please check your .env file and ensure all required variables are set.');
+	process.exit(1);
+}
+
 (async () => {
 	try {
 		await connectDB();
@@ -49,7 +58,7 @@ require('dotenv').config();
 
 		await client.login(process.env.DISCORD_BOT_TOKEN);
 	} catch (error) {
-		logger.error(`Failed to start bot: ${error}`);
+		logger.error('Failed to start bot', { error });
 		process.exit(1);
 	}
 })();
