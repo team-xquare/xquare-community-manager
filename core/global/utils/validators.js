@@ -4,6 +4,7 @@ const ERROR = {
 	notString: field => `${field} must be a string`,
 	tooLong: (field, max) => `${field} must not exceed ${max} characters`,
 	labelTooLong: max => `Each label must not exceed ${max} characters`,
+	labelsTooMany: max => `Labels must not exceed ${max} items`,
 	labelInvalid: label => `Label "${label}" contains invalid characters`,
 	statusNotString: 'Status must be a string',
 	statusInvalid: valid => `Status must be one of: ${valid.join(', ')}`,
@@ -36,11 +37,14 @@ function sanitizeString(value, fieldName = 'Field', maxLength = DEFAULTS.stringM
 function sanitizeLabels(labelsString, maxLabels = DEFAULTS.labelsMax, maxLabelLength = DEFAULTS.labelLength) {
 	if (!labelsString || typeof labelsString !== 'string') return [];
 
-	const labels = labelsString
+	const rawLabels = labelsString
 		.split(',')
 		.map(label => label.trim())
-		.filter(Boolean)
-		.slice(0, maxLabels);
+		.filter(Boolean);
+
+	if (rawLabels.length > maxLabels) throw new ValidationError(ERROR.labelsTooMany(maxLabels));
+
+	const labels = rawLabels.slice(0, maxLabels);
 
 	labels.forEach(label => {
 		if (label.length > maxLabelLength) throw new ValidationError(ERROR.labelTooLong(maxLabelLength));

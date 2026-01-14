@@ -8,6 +8,7 @@ const logger = require('@xquare/global/utils/loggers/logger');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
 const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
+const { buildTicketChannelName, normalizeClosedName, stripClosedPrefix } = require('@xquare/domain/ticket/service/ticketChannelNameService');
 const { t } = require('@xquare/global/i18n');
 
 const ERROR = {
@@ -44,13 +45,13 @@ const assertAdmin = member => {
 	throw new ValidationError(ERROR.adminOnlyClose, { expose: true });
 };
 
-const updateCloseStatus = (channel, ticket, actorId) => updateTicketByChannelId(channel.id, {
+const updateCloseStatus = (channel, ticket, actorId, openName) => updateTicketByChannelId(channel.id, {
 	status: 'closed',
 	closedAt: new Date(),
 	closedBy: actorId,
 	closeScheduledAt: null,
 	closeScheduledBy: null,
-	originalChannelName: channel.name,
+	originalChannelName: openName,
 	lastActivityAt: new Date(),
 });
 
@@ -64,17 +65,18 @@ const updateReopenStatus = channel => updateTicketByChannelId(channel.id, {
 	lastActivityAt: new Date(),
 });
 
-const renameClosedChannel = async channel => {
-	const baseName = channel.name.replace(/^closed-/, '');
+const renameClosedChannel = async (channel, openName) => {
+	const baseName = openName || stripClosedPrefix(channel.name);
+	const targetName = normalizeClosedName(baseName);
 	try {
-		await channel.setName(`closed-${baseName}`.slice(0, 100));
+		await channel.setName(targetName.slice(0, 100));
 	} catch (error) {
 		logger.warn(LOG.renameClosedFailed, { error, channelId: channel.id });
 	}
 };
 
-const renameOpenChannel = async (channel, originalName) => {
-	const targetName = originalName || channel.name.replace(/^closed-/, '');
+const renameOpenChannel = async (channel, openName) => {
+	const targetName = openName || stripClosedPrefix(channel.name);
 	try {
 		await channel.setName(targetName.slice(0, 100));
 	} catch (error) {
@@ -103,6 +105,12 @@ const getCategoryName = async (channel, key) => {
 	}
 };
 
+const resolveOpenChannelName = (ticket, channel) => {
+	if (ticket?.channelUuid) return buildTicketChannelName(ticket.ticketNumber, ticket.channelUuid);
+	if (ticket?.originalChannelName) return ticket.originalChannelName;
+	return stripClosedPrefix(channel.name);
+};
+
 const updatePermissions = async (channel, userId, permissions, logMessage, logContext) => {
 	try {
 		await channel.permissionOverwrites.edit(userId, permissions);
@@ -127,9 +135,10 @@ const scheduleCloseTimer = (channel, closesAt, reason) => {
 };
 
 async function finalizeClose(channel, ticket, actorId, reason) {
-	const updated = await updateCloseStatus(channel, ticket, actorId);
+	const openName = resolveOpenChannelName(ticket, channel);
+	const updated = await updateCloseStatus(channel, ticket, actorId, openName);
 	await updateTicketSummary(channel, updated);
-	await renameClosedChannel(channel);
+	await renameClosedChannel(channel, openName);
 	const closeCategory = await getCategoryName(channel, 'closeCategory');
 	if (closeCategory) await updateCategory(channel, closeCategory);
 	await updatePermissions(channel, ticket.userId, { SendMessages: false, ViewChannel: true, ReadMessageHistory: true }, LOG.permissionsClosedFailed, { channelId: channel.id, userId: ticket.userId });
@@ -176,10 +185,11 @@ async function reopenTicket(channel, actorMember) {
 	const ticket = await findTicketByChannelId(channel.id);
 	if (!ticket) throw new NotFoundError(ERROR.ticketNotFound);
 
+	const openName = resolveOpenChannelName(ticket, channel);
 	cancelScheduledClose(channel.id);
 	const updated = await updateReopenStatus(channel);
 	await updateTicketSummary(channel, updated);
-	await renameOpenChannel(channel, ticket.originalChannelName);
+	await renameOpenChannel(channel, openName);
 	const openCategory = await getCategoryName(channel, 'openCategory');
 	if (openCategory) await updateCategory(channel, openCategory);
 	await updatePermissions(channel, ticket.userId, { SendMessages: true, ViewChannel: true, ReadMessageHistory: true }, LOG.permissionsReopenFailed, { ticketId: ticket.id });

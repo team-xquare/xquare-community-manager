@@ -10,6 +10,10 @@ const ticketSchema = new mongoose.Schema({
 		type: String,
 		required: true,
 	},
+	channelUuid: {
+		type: String,
+		default: null,
+	},
 	title: {
 		type: String,
 		default: '',

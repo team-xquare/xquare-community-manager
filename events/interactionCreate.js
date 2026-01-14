@@ -5,6 +5,7 @@ const { createTicket } = require('@xquare/domain/ticket/service/createTicketServ
 const { t } = require('@xquare/global/i18n');
 
 const FLAGS = { flags: MessageFlags.Ephemeral };
+const LIMITS = { titleMax: 200, descriptionMax: 2000 };
 
 const LOG = {
 	missingCommand: name => `No command matching ${name} was found`,
@@ -21,12 +22,13 @@ const MODAL = {
 
 const RESPONSE = {
 	created: channelId => t('ticket.response.created', { channelId }),
+	commandNotFound: t('common.unknownCommand'),
 };
 
 const buildModal = () => {
 	const modal = new ModalBuilder().setCustomId(MODAL.openId).setTitle(MODAL.openTitle);
-	const titleInput = new TextInputBuilder().setCustomId(MODAL.fields.title.id).setLabel(MODAL.fields.title.label).setStyle(MODAL.fields.title.style).setRequired(MODAL.fields.title.required);
-	const descriptionInput = new TextInputBuilder().setCustomId(MODAL.fields.description.id).setLabel(MODAL.fields.description.label).setStyle(MODAL.fields.description.style).setRequired(MODAL.fields.description.required);
+	const titleInput = new TextInputBuilder().setCustomId(MODAL.fields.title.id).setLabel(MODAL.fields.title.label).setStyle(MODAL.fields.title.style).setRequired(MODAL.fields.title.required).setMaxLength(LIMITS.titleMax);
+	const descriptionInput = new TextInputBuilder().setCustomId(MODAL.fields.description.id).setLabel(MODAL.fields.description.label).setStyle(MODAL.fields.description.style).setRequired(MODAL.fields.description.required).setMaxLength(LIMITS.descriptionMax);
 	return modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descriptionInput));
 };
 
@@ -52,7 +54,10 @@ const handleOpenModal = async interaction => {
 
 const handleCommand = async interaction => {
 	const command = interaction.client.commands.get(interaction.commandName);
-	if (!command) return logger.error(LOG.missingCommand(interaction.commandName));
+	if (!command) {
+		await interaction.reply({ content: RESPONSE.commandNotFound, ...FLAGS }).catch(() => null);
+		return logger.error(LOG.missingCommand(interaction.commandName));
+	}
 	try {
 		return command.execute(interaction);
 	} catch (error) {

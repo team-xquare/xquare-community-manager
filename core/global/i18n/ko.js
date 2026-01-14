@@ -7,6 +7,7 @@ module.exports = {
 		unknown: '알 수 없음',
 		noPermission: '이 명령을 실행할 권한이 없습니다.',
 		userNotFound: '사용자를 찾을 수 없습니다.',
+		unknownCommand: '알 수 없는 명령입니다.',
 	},
 	errors: {
 		validation: '입력값을 확인해주세요.',
