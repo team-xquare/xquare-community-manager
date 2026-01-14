@@ -171,6 +171,13 @@ module.exports = {
 			closeScheduled: '티켓 종료 명령이 접수되었습니다. {minutes}분 후 닫힙니다.{reason}',
 			reopened: '티켓이 다시 열렸습니다. 요청자: <@{userId}>',
 		},
+		migration: {
+			start: '티켓 카운터 마이그레이션을 시작합니다.',
+			noTickets: '기존 티켓이 없어 카운터 마이그레이션을 건너뜁니다.',
+			skipped: '티켓 카운터가 이미 최신 상태입니다.',
+			updated: '티켓 카운터를 {from} -> {to}로 갱신했습니다.',
+			failed: '티켓 카운터 마이그레이션에 실패했습니다.',
+		},
 		ui: {
 			buttonLabel: '티켓 생성',
 			publishPrompt: '티켓을 생성하려면 아래 버튼을 눌러주세요.',
