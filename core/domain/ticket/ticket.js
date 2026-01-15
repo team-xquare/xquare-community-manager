@@ -14,6 +14,10 @@ const ticketSchema = new mongoose.Schema({
 		type: String,
 		default: null,
 	},
+	channelDeletedAt: {
+		type: Date,
+		default: null,
+	},
 	title: {
 		type: String,
 		default: '',
@@ -89,5 +93,6 @@ ticketSchema.index({ labels: 1 });
 ticketSchema.index({ assignees: 1 });
 ticketSchema.index({ guildId: 1, status: 1 });
 ticketSchema.index({ closeScheduledAt: 1 }, { sparse: true });
+ticketSchema.index({ lastActivityAt: 1 });
 
 module.exports = mongoose.model('tbl_ticket', ticketSchema);

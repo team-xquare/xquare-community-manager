@@ -151,7 +151,7 @@ module.exports = {
 			createdAt: '생성 시각: {timestamp}',
 		},
 		list: {
-			item: '#{ticketNumber} [{status}] {title} | {labels} | {assignees} | <#{channelId}>',
+			item: '#{ticketNumber} [{status}] {title} | {labels} | {assignees} | {channel}',
 		},
 		defaults: {
 			title: '제목 없음',
@@ -165,6 +165,7 @@ module.exports = {
 			ticketNotFound: '티켓을 찾을 수 없습니다.',
 			alreadyClosed: '이미 종료된 티켓입니다.',
 			alreadyClosing: '이미 종료 대기 중입니다.',
+			categoryFull: '카테고리 채널이 가득 차서 새로운 채널을 만들 수 없습니다.',
 		},
 		lifecycle: {
 			reasonLine: '\n이유: {reason}',

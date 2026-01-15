@@ -9,6 +9,7 @@ const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSum
 const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
 const { buildTicketChannelName, normalizeClosedName, stripClosedPrefix } = require('@xquare/domain/ticket/service/ticketChannelNameService');
+const { ensureCategoryCapacity } = require('@xquare/domain/ticket/service/ticketRetentionService');
 const { t } = require('@xquare/global/i18n');
 
 const ERROR = {
@@ -28,6 +29,7 @@ const TEXT = {
 const LOG = {
 	renameClosedFailed: 'Failed to rename closed ticket channel',
 	setCategoryFailed: 'Failed to set ticket channel category',
+	categoryFull: 'Category limit reached, unable to move ticket channel',
 	permissionsClosedFailed: 'Failed to update permissions for closed ticket',
 	finalizeCloseFailed: 'Failed to finalize ticket close',
 	renameReopenFailed: 'Failed to restore ticket channel name',
@@ -89,6 +91,8 @@ const updateCategory = async (channel, categoryName) => {
 	try {
 		const category = await getOrCreateCategory(channel.guild, categoryName);
 		categoryId = category.id;
+		const capacityReady = await ensureCategoryCapacity(category);
+		if (!capacityReady) return logger.warn(LOG.categoryFull, { channelId: channel.id, categoryId });
 		await channel.setParent(category.id);
 	} catch (error) {
 		logger.warn(LOG.setCategoryFailed, { error, channelId: channel.id, categoryId });
@@ -198,7 +202,7 @@ async function reopenTicket(channel, actorMember) {
 }
 
 async function bootstrapScheduledCloses(client) {
-	const tickets = await findAllTickets({ closeScheduledAt: { $ne: null }, status: { $ne: 'closed' } });
+	const tickets = await findAllTickets({ closeScheduledAt: { $ne: null }, status: { $ne: 'closed' }, channelDeletedAt: null, channelId: { $ne: null } });
 	const channelIds = [...new Set(tickets.map(ticket => ticket.channelId).filter(Boolean))];
 	const channelMap = new Map(channelIds.map(id => [id, client.channels.cache.get(id)]).filter(([, channel]) => channel));
 	const fetchIds = channelIds.filter(id => !channelMap.has(id));

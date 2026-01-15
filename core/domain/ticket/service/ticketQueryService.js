@@ -10,6 +10,8 @@ const buildQuery = filters => {
 	if (filters.status) query.status = filters.status;
 	if (filters.label) query.labels = { $in: [filters.label] };
 	if (filters.assignee) query.assignees = { $in: [filters.assignee] };
+	query.channelDeletedAt = null;
+	query.channelId = { $ne: null };
 	return query;
 };
 

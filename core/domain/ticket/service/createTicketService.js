@@ -8,6 +8,7 @@ const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const Counter = require('@xquare/domain/ticket/counter');
 const { sanitizeString, sanitizeLabels } = require('@xquare/global/utils/validators');
 const { buildTicketChannelName, generateChannelUuid } = require('@xquare/domain/ticket/service/ticketChannelNameService');
+const { ensureCategoryCapacity } = require('@xquare/domain/ticket/service/ticketRetentionService');
 const { t } = require('@xquare/global/i18n');
 
 const REQUIRED_FIELDS = [
@@ -27,6 +28,7 @@ const LOG = {
 
 const ERROR = {
 	settingsIncomplete: fields => t('ticket.errors.settingsIncomplete', { fields }),
+	categoryFull: t('ticket.errors.categoryFull'),
 };
 
 const COUNTER_ID = 'ticketNumber';
@@ -94,7 +96,10 @@ const safeSendWelcome = async (channel, content) => {
 async function createTicket(interaction, payload = {}) {
 	const settings = await getSetting('guild', interaction.guildId, 'ticket', 'ui');
 	const missingFields = getMissingSettings(settings);
-	if (missingFields.length) throw new ValidationError(ERROR.settingsIncomplete(missingFields.map(field => field.label).join(', ')));
+	if (missingFields.length) {
+		const message = ERROR.settingsIncomplete(missingFields.map(field => field.label).join(', '));
+		throw new ValidationError(message, { userMessage: message });
+	}
 
 	const titleRaw = payload.title || interaction.options?.getString?.('title') || DEFAULTS.title;
 	const descriptionRaw = payload.description || interaction.options?.getString?.('description') || '';
@@ -113,6 +118,8 @@ async function createTicket(interaction, payload = {}) {
 	const channelName = buildTicketChannelName(ticketNumber, channelUuid);
 	const categoryName = settings.openCategory.trim();
 	const category = await getOrCreateCategory(interaction.guild, categoryName);
+	const capacityReady = await ensureCategoryCapacity(category);
+	if (!capacityReady) throw new ValidationError(ERROR.categoryFull, { userMessage: ERROR.categoryFull });
 	const ticketChannel = await createChannel(interaction.guild, interaction.user, interaction.client, channelName, category.id);
 
 	let ticketRecord;

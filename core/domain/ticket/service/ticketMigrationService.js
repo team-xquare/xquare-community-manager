@@ -73,7 +73,7 @@ const buildTargetName = (ticket, baseName) => ticket.status === 'closed' ? norma
 async function migrateTicketChannels(client) {
 	try {
 		logger.info(LOG.channelStart);
-		const tickets = await Ticket.find().lean();
+		const tickets = await Ticket.find({ channelDeletedAt: null, channelId: { $ne: null } }).lean();
 		if (!tickets.length) return logger.info(LOG.channelNoTickets);
 
 		const channelIds = [...new Set(tickets.map(ticket => ticket.channelId).filter(Boolean))];

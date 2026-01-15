@@ -502,7 +502,7 @@ async function handleList(interaction) {
 			title: ticket.title || TEXT.defaults.title,
 			labels: formatLabels(ticket.labels),
 			assignees: formatAssignees(ticket.assignees),
-			channelId: ticket.channelId,
+			channel: ticket.channelId ? `<#${ticket.channelId}>` : TEXT.common.unknown,
 		}));
 
 		return sendLines(interaction, lines);
