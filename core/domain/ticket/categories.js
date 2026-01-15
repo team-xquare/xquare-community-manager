@@ -1,3 +1,18 @@
+const ValidationError = require('@xquare/global/utils/errors/ValidationError');
+
+const DATE_TIME_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\s([01]\d|2[0-3]):[0-5]\d$/;
+
+const ERROR = {
+	invalidCategory: '유효하지 않은 이슈 종류입니다.',
+	required: label => `${label}은(는) 필수 입력 항목입니다.`,
+	tooLong: (label, max) => `${label}은(는) 최대 ${max}자까지 입력 가능합니다.`,
+	invalidFormat: label => `${label} 형식이 올바르지 않습니다.`,
+};
+
+const PATTERN_MESSAGE = {
+	deploymentTime: '배포 시도 시각 형식은 YYYY-MM-DD HH:MM 입니다.',
+};
+
 const CATEGORIES = {
 	'deployment-issue': {
 		id: 'deployment-issue',
@@ -8,7 +23,15 @@ const CATEGORIES = {
 			{ id: 'description', label: '상세 설명', type: 'long', required: true, maxLength: 2000 },
 			{ id: 'project_name', label: '프로젝트명', type: 'short', required: true, maxLength: 100 },
 			{ id: 'environment', label: '환경 (production/staging/development)', type: 'short', required: true, maxLength: 50 },
-			{ id: 'deployment_time', label: '배포 시도 시각 (예: 2024-01-15 14:30)', type: 'short', required: true, maxLength: 100 },
+			{
+				id: 'deployment_time',
+				label: '배포 시도 시각 (예: 2024-01-15 14:30)',
+				type: 'short',
+				required: true,
+				maxLength: 100,
+				pattern: DATE_TIME_PATTERN,
+				patternMessage: PATTERN_MESSAGE.deploymentTime,
+			},
 		],
 	},
 	'service-outage': {
@@ -95,27 +118,23 @@ const getCategoryChoices = () => getAllCategories().map(cat => ({
 
 const validateCategoryFields = (categoryId, fieldData) => {
 	const category = getCategoryById(categoryId);
-	if (!category) {
-		throw new Error(`Invalid category: ${categoryId}`);
-	}
+	if (!category) throw new ValidationError(ERROR.invalidCategory, { userMessage: ERROR.invalidCategory });
 
 	const errors = [];
 
 	category.fields.forEach(field => {
 		const value = fieldData[field.id];
 
-		if (field.required && (!value || value.trim().length === 0)) {
-			errors.push(`${field.label}은(는) 필수 입력 항목입니다.`);
-		}
+		if (field.required && (!value || value.trim().length === 0)) errors.push(ERROR.required(field.label));
 
-		if (value && value.length > field.maxLength) {
-			errors.push(`${field.label}은(는) 최대 ${field.maxLength}자까지 입력 가능합니다.`);
+		if (value && value.length > field.maxLength) errors.push(ERROR.tooLong(field.label, field.maxLength));
+
+		if (value && field.pattern && !field.pattern.test(value)) {
+			errors.push(field.patternMessage || ERROR.invalidFormat(field.label));
 		}
 	});
 
-	if (errors.length > 0) {
-		throw new Error(errors.join('\n'));
-	}
+	if (errors.length > 0) throw new ValidationError(errors.join('\n'), { userMessage: errors.join('\n') });
 
 	return true;
 };

@@ -1,4 +1,4 @@
-const { ChannelType, PermissionsBitField, EmbedBuilder } = require('discord.js');
+const { ChannelType, PermissionsBitField } = require('discord.js');
 const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
@@ -6,7 +6,7 @@ const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
 const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const Counter = require('@xquare/domain/ticket/counter');
-const { sanitizeString, sanitizeLabels } = require('@xquare/global/utils/validators');
+const { sanitizeLabels } = require('@xquare/global/utils/validators');
 const { buildTicketChannelName, generateChannelUuid } = require('@xquare/domain/ticket/service/ticketChannelNameService');
 const { ensureCategoryCapacity } = require('@xquare/domain/ticket/service/ticketRetentionService');
 const { validateCategoryFields, getCategoryById } = require('@xquare/domain/ticket/categories');
@@ -33,6 +33,15 @@ const ERROR = {
 };
 
 const COUNTER_ID = 'ticketNumber';
+const MESSAGE_LIMIT = 1900;
+
+const ISSUE_TEXT = {
+	header: '이슈 정보',
+	status: '상태',
+	category: '종류',
+	title: '제목',
+	empty: '없음',
+};
 
 const getNextTicketNumber = async () => {
 	const counter = await Counter.findByIdAndUpdate(COUNTER_ID, { $inc: { sequence: 1 } }, { new: true, upsert: true });
@@ -86,34 +95,59 @@ const safeDeleteChannel = async channel => {
 	}
 };
 
-const sendWelcomeEmbed = async (channel, ticket, categoryInfo, welcomeText) => {
+const splitLongLine = (line, maxLength) => {
+	if (line.length <= maxLength) return [line];
+	const parts = [];
+	for (let index = 0; index < line.length; index += maxLength) {
+		parts.push(line.slice(index, index + maxLength));
+	}
+	return parts;
+};
+
+const chunkLines = (lines, maxLength) => {
+	const chunks = [];
+	let current = '';
+	lines.forEach(line => {
+		splitLongLine(line, maxLength).forEach(part => {
+			const next = current ? `${current}\n${part}` : part;
+			if (next.length <= maxLength) return current = next;
+			if (current) chunks.push(current);
+			current = part;
+		});
+	});
+	if (current) chunks.push(current);
+	return chunks;
+};
+
+const sendLines = async (channel, lines) => {
+	const chunks = chunkLines(lines, MESSAGE_LIMIT);
+	for (const chunk of chunks) await channel.send({ content: chunk });
+};
+
+const buildIssueLines = (ticket, categoryInfo) => {
+	const lines = [
+		ISSUE_TEXT.header,
+		`${ISSUE_TEXT.status}: ${ticket.status}`,
+		`${ISSUE_TEXT.category}: ${categoryInfo.name}`,
+		`${ISSUE_TEXT.title}: ${ticket.title || ISSUE_TEXT.empty}`,
+	];
+
+	categoryInfo.fields.filter(field => field.id !== 'title').forEach(field => {
+		const rawValue = ticket.categoryFields?.get?.(field.id) || ticket.categoryFields?.[field.id] || '';
+		const value = String(rawValue).trim();
+		if (!value) return;
+		lines.push(`${field.label}: ${value}`);
+	});
+
+	lines.push(`티켓 #${ticket.ticketNumber}`);
+	return lines;
+};
+
+const sendWelcomeMessage = async (channel, ticket, categoryInfo, welcomeText) => {
 	try {
 		await channel.send({ content: welcomeText });
-
-		const embed = new EmbedBuilder()
-			.setColor(0x5865F2)
-			.setTitle('이슈 정보')
-			.addFields(
-				{ name: '종류', value: categoryInfo.name, inline: true },
-				{ name: '제목', value: ticket.title || '제목 없음', inline: false }
-			);
-
-		const fieldsToShow = categoryInfo.fields.filter(f => f.id !== 'title');
-		fieldsToShow.forEach(field => {
-			const value = ticket.categoryFields?.get?.(field.id) || ticket.categoryFields?.[field.id] || '없음';
-			if (value && value !== '없음') {
-				embed.addFields({
-					name: field.label,
-					value: value.length > 1024 ? value.substring(0, 1021) + '...' : value,
-					inline: false,
-				});
-			}
-		});
-
-		embed.setFooter({ text: `티켓 #${ticket.ticketNumber}` });
-		embed.setTimestamp();
-
-		await channel.send({ embeds: [embed] });
+		const lines = buildIssueLines(ticket, categoryInfo);
+		await sendLines(channel, lines);
 	} catch (error) {
 		logger.warn(LOG.welcomeFailed(channel.id), { error, channelId: channel.id });
 	}
@@ -172,7 +206,7 @@ async function createTicket(interaction, payload = {}) {
 			welcomeText,
 		});
 
-		await sendWelcomeEmbed(ticketChannel, ticketRecord.toObject(), categoryInfo, welcomeText);
+		await sendWelcomeMessage(ticketChannel, ticketRecord.toObject(), categoryInfo, welcomeText);
 		await updateTicketSummary(ticketChannel, ticketRecord.toObject());
 		logger.info(LOG.created(ticketNumber, ticketChannel.name, ticketChannel.id, interaction.user.tag));
 	} catch (error) {
