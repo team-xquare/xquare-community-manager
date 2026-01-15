@@ -183,6 +183,8 @@ module.exports = {
 		ui: {
 			buttonLabel: '티켓 생성',
 			publishPrompt: '티켓을 생성하려면 아래 버튼을 눌러주세요.',
+			selectPlaceholder: '이슈 종류를 선택해주세요',
+			selectPrompt: '아래에서 이슈 종류를 선택해주세요.',
 			missingChannel: '티켓 생성 UI 채널이 설정되지 않았습니다. /ticket set creation_channel 로 설정해주세요.',
 			channelNotFound: '설정된 생성 채널을 찾을 수 없습니다.',
 		},

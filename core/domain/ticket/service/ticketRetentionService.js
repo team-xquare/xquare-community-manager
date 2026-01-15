@@ -1,7 +1,6 @@
 const Ticket = require('@xquare/domain/ticket/ticket');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { updateTicketById } = require('@xquare/domain/ticket/repository/updateTicketRepository');
-const { CHANNEL_NAME_PREFIX } = require('@xquare/domain/ticket/service/ticketChannelNameService');
 
 const LIMITS = {
 	categoryMax: 50,
@@ -44,7 +43,11 @@ const buildDeletionUpdate = ticket => {
 	return update;
 };
 
-const isTicketChannelName = name => name?.toLowerCase?.().includes(`${CHANNEL_NAME_PREFIX}-`);
+const isTicketChannelName = name => {
+	const lower = name?.toLowerCase?.() || '';
+	if (lower.includes('xquare-issue-')) return true;
+	return /^(open|close|closed)?-?\d+-[0-9a-f-]{8,}/.test(lower);
+};
 
 const fetchGuildChannels = async guild => guild.channels.fetch();
 

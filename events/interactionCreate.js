@@ -1,13 +1,11 @@
-const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandler');
 const { createTicket } = require('@xquare/domain/ticket/service/createTicketService');
-const { getCategoryById } = require('@xquare/domain/ticket/categories');
+const { getCategoryById, getCategoryChoices } = require('@xquare/domain/ticket/categories');
 const { t } = require('@xquare/global/i18n');
 
 const FLAGS = { flags: MessageFlags.Ephemeral };
-const LIMITS = { titleMax: 200, descriptionMax: 2000 };
-
 const LOG = {
 	missingCommand: name => `No command matching ${name} was found`,
 };
@@ -19,6 +17,13 @@ const MODAL = {
 		title: { id: 'ticket:title', label: t('ticket.modal.field.title'), style: TextInputStyle.Short, required: true },
 		description: { id: 'ticket:description', label: t('ticket.modal.field.description'), style: TextInputStyle.Paragraph, required: false },
 	},
+};
+
+const SELECT = {
+	buttonId: 'ticket:category-button',
+	menuId: 'ticket:category-select',
+	placeholder: t('ticket.ui.selectPlaceholder'),
+	prompt: t('ticket.ui.selectPrompt'),
 };
 
 const RESPONSE = {
@@ -47,6 +52,21 @@ const buildCategoryModal = categoryId => {
 	});
 
 	return modal;
+};
+
+const buildCategorySelectMenu = () => new ActionRowBuilder().addComponents(
+	new StringSelectMenuBuilder()
+		.setCustomId(SELECT.menuId)
+		.setPlaceholder(SELECT.placeholder)
+		.addOptions(getCategoryChoices())
+);
+
+const handleCategoryButton = async interaction => {
+	try {
+		return interaction.reply({ content: SELECT.prompt, components: [buildCategorySelectMenu()], ...FLAGS });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction });
+	}
 };
 
 const handleCategorySelect = async interaction => {
@@ -96,7 +116,8 @@ const handleCommand = async interaction => {
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
-		if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:category-select') return handleCategorySelect(interaction);
+		if (interaction.isButton() && interaction.customId === SELECT.buttonId) return handleCategoryButton(interaction);
+		if (interaction.isStringSelectMenu() && interaction.customId === SELECT.menuId) return handleCategorySelect(interaction);
 		if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket:open-modal:')) return handleOpenModal(interaction);
 		if (interaction.isChatInputCommand()) return handleCommand(interaction);
 	},
