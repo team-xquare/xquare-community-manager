@@ -127,12 +127,12 @@ async function createTicket(interaction, payload = {}) {
 		throw new ValidationError(message, { userMessage: message });
 	}
 
-	const category = payload.category || 'general-inquiry';
+	const ticketCategory = payload.category || 'general-inquiry';
 	const categoryFields = payload.categoryFields || {};
 
-	validateCategoryFields(category, categoryFields);
+	validateCategoryFields(ticketCategory, categoryFields);
 
-	const categoryInfo = getCategoryById(category);
+	const categoryInfo = getCategoryById(ticketCategory);
 	const title = categoryFields.title || DEFAULTS.title;
 	const description = categoryFields.description || '';
 
@@ -147,10 +147,10 @@ async function createTicket(interaction, payload = {}) {
 	const channelUuid = generateChannelUuid();
 	const channelName = buildTicketChannelName(ticketNumber, channelUuid);
 	const categoryName = settings.openCategory.trim();
-	const category = await getOrCreateCategory(interaction.guild, categoryName);
-	const capacityReady = await ensureCategoryCapacity(category);
+	const discordCategory = await getOrCreateCategory(interaction.guild, categoryName);
+	const capacityReady = await ensureCategoryCapacity(discordCategory);
 	if (!capacityReady) throw new ValidationError(ERROR.categoryFull, { userMessage: ERROR.categoryFull });
-	const ticketChannel = await createChannel(interaction.guild, interaction.user, interaction.client, channelName, category.id);
+	const ticketChannel = await createChannel(interaction.guild, interaction.user, interaction.client, channelName, discordCategory.id);
 
 	let ticketRecord;
 	try {
@@ -161,7 +161,7 @@ async function createTicket(interaction, payload = {}) {
 			channelUuid,
 			title,
 			description,
-			category,
+			category: ticketCategory,
 			categoryFields,
 			labels,
 			assignees,
