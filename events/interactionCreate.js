@@ -2,6 +2,7 @@ const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, Ac
 const logger = require('@xquare/global/utils/loggers/logger');
 const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandler');
 const { createTicket } = require('@xquare/domain/ticket/service/createTicketService');
+const { getCategoryById } = require('@xquare/domain/ticket/categories');
 const { t } = require('@xquare/global/i18n');
 
 const FLAGS = { flags: MessageFlags.Ephemeral };
@@ -25,16 +26,34 @@ const RESPONSE = {
 	commandNotFound: t('common.unknownCommand'),
 };
 
-const buildModal = () => {
-	const modal = new ModalBuilder().setCustomId(MODAL.openId).setTitle(MODAL.openTitle);
-	const titleInput = new TextInputBuilder().setCustomId(MODAL.fields.title.id).setLabel(MODAL.fields.title.label).setStyle(MODAL.fields.title.style).setRequired(MODAL.fields.title.required).setMaxLength(LIMITS.titleMax);
-	const descriptionInput = new TextInputBuilder().setCustomId(MODAL.fields.description.id).setLabel(MODAL.fields.description.label).setStyle(MODAL.fields.description.style).setRequired(MODAL.fields.description.required).setMaxLength(LIMITS.descriptionMax);
-	return modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descriptionInput));
+const buildCategoryModal = categoryId => {
+	const category = getCategoryById(categoryId);
+	if (!category) throw new Error(`Invalid category: ${categoryId}`);
+
+	const modal = new ModalBuilder()
+		.setCustomId(`ticket:open-modal:${categoryId}`)
+		.setTitle(category.name);
+
+	const fields = category.fields.slice(0, 5);
+	fields.forEach(field => {
+		const input = new TextInputBuilder()
+			.setCustomId(`field:${field.id}`)
+			.setLabel(field.label)
+			.setStyle(field.type === 'long' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+			.setRequired(field.required)
+			.setMaxLength(field.maxLength);
+
+		modal.addComponents(new ActionRowBuilder().addComponents(input));
+	});
+
+	return modal;
 };
 
-const handleOpenButton = async interaction => {
+const handleCategorySelect = async interaction => {
 	try {
-		return interaction.showModal(buildModal());
+		const categoryId = interaction.values[0];
+		const modal = buildCategoryModal(categoryId);
+		return interaction.showModal(modal);
 	} catch (error) {
 		return handleError(wrapUnexpected(error), { interaction });
 	}
@@ -43,9 +62,18 @@ const handleOpenButton = async interaction => {
 const handleOpenModal = async interaction => {
 	try {
 		await interaction.deferReply(FLAGS);
-		const title = interaction.fields.getTextInputValue(MODAL.fields.title.id);
-		const description = interaction.fields.getTextInputValue(MODAL.fields.description.id);
-		const result = await createTicket(interaction, { title, description });
+
+		const [, , categoryId] = interaction.customId.split(':');
+		const category = getCategoryById(categoryId);
+		if (!category) throw new Error(`Invalid category: ${categoryId}`);
+
+		const fieldData = {};
+		category.fields.forEach(field => {
+			const value = interaction.fields.getTextInputValue(`field:${field.id}`);
+			fieldData[field.id] = value || '';
+		});
+
+		const result = await createTicket(interaction, { category: categoryId, categoryFields: fieldData });
 		return interaction.editReply({ content: RESPONSE.created(result.channel.id) });
 	} catch (error) {
 		return handleError(wrapUnexpected(error), { interaction });
@@ -68,8 +96,8 @@ const handleCommand = async interaction => {
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
-		if (interaction.isButton() && interaction.customId === 'ticket:open') return handleOpenButton(interaction);
-		if (interaction.isModalSubmit() && interaction.customId === MODAL.openId) return handleOpenModal(interaction);
+		if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:category-select') return handleCategorySelect(interaction);
+		if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket:open-modal:')) return handleOpenModal(interaction);
 		if (interaction.isChatInputCommand()) return handleCommand(interaction);
 	},
 };

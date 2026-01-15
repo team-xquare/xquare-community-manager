@@ -26,6 +26,15 @@ const ticketSchema = new mongoose.Schema({
 		type: String,
 		default: '',
 	},
+	category: {
+		type: String,
+		required: true,
+	},
+	categoryFields: {
+		type: Map,
+		of: String,
+		default: {},
+	},
 	labels: {
 		type: [String],
 		default: [],
@@ -89,9 +98,11 @@ const ticketSchema = new mongoose.Schema({
 
 ticketSchema.index({ guildId: 1 });
 ticketSchema.index({ status: 1 });
+ticketSchema.index({ category: 1 });
 ticketSchema.index({ labels: 1 });
 ticketSchema.index({ assignees: 1 });
 ticketSchema.index({ guildId: 1, status: 1 });
+ticketSchema.index({ guildId: 1, category: 1 });
 ticketSchema.index({ closeScheduledAt: 1 }, { sparse: true });
 ticketSchema.index({ lastActivityAt: 1 });
 

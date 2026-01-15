@@ -1,19 +1,25 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const ValidationError = require('@xquare/global/utils/errors/ValidationError');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
+const { getCategoryChoices } = require('@xquare/domain/ticket/categories');
 const { t } = require('@xquare/global/i18n');
 
 const TEXT = {
-	buttonLabel: t('ticket.ui.buttonLabel'),
 	publishPrompt: t('ticket.ui.publishPrompt'),
 	missingChannel: t('ticket.ui.missingChannel'),
 	channelNotFound: t('ticket.ui.channelNotFound'),
-	defaultButtonLabel: t('ticket.defaults.buttonLabel'),
+	selectPlaceholder: '이슈 종류를 선택해주세요',
 };
 
-const buildCreateButton = label => new ActionRowBuilder().addComponents(
-	new ButtonBuilder().setCustomId('ticket:open').setLabel(label || TEXT.buttonLabel).setStyle(ButtonStyle.Primary)
-);
+const buildCategorySelectMenu = () => {
+	const choices = getCategoryChoices();
+	return new ActionRowBuilder().addComponents(
+		new StringSelectMenuBuilder()
+			.setCustomId('ticket:category-select')
+			.setPlaceholder(TEXT.selectPlaceholder)
+			.addOptions(choices)
+	);
+};
 
 async function publishTicketUi(guild, actor) {
 	const settings = await getSetting('guild', guild.id, 'ticket', 'ui');
@@ -25,8 +31,7 @@ async function publishTicketUi(guild, actor) {
 
 	const rawText = settings.uiMessage?.replace('{user}', `${actor}`) || TEXT.publishPrompt;
 	const welcomeText = rawText.replace(/\\n/g, '\n');
-	const buttonLabel = settings.buttonLabels?.create || TEXT.defaultButtonLabel;
-	const components = [buildCreateButton(buttonLabel)];
+	const components = [buildCategorySelectMenu()];
 
 	await channel.send({ content: welcomeText, components });
 }

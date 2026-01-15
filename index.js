@@ -5,6 +5,7 @@ const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const logger = require('@xquare/global/utils/loggers/logger');
 const connectDB = require('@xquare/global/configs/database');
 const { migrateTicketCounter } = require('@xquare/domain/ticket/service/ticketMigrationService');
+const { runMigrationOnce } = require('@xquare/domain/ticket/migration');
 require('dotenv').config();
 
 const REQUIRED_ENV = ['DISCORD_BOT_TOKEN', 'CLIENT_ID', 'MONGODB_URI'];
@@ -64,7 +65,7 @@ const start = async () => {
 	if (!validateEnv()) process.exit(1);
 	try {
 		await connectDB();
-		await migrateTicketCounter();
+		await runMigrationOnce(migrateTicketCounter);
 		const client = buildClient();
 		client.commands = new Collection();
 		loadCommands(client);

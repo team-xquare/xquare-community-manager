@@ -1,4 +1,4 @@
-const { ChannelType, PermissionsBitField } = require('discord.js');
+const { ChannelType, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
@@ -9,6 +9,7 @@ const Counter = require('@xquare/domain/ticket/counter');
 const { sanitizeString, sanitizeLabels } = require('@xquare/global/utils/validators');
 const { buildTicketChannelName, generateChannelUuid } = require('@xquare/domain/ticket/service/ticketChannelNameService');
 const { ensureCategoryCapacity } = require('@xquare/domain/ticket/service/ticketRetentionService');
+const { validateCategoryFields, getCategoryById } = require('@xquare/domain/ticket/categories');
 const { t } = require('@xquare/global/i18n');
 
 const REQUIRED_FIELDS = [
@@ -85,9 +86,34 @@ const safeDeleteChannel = async channel => {
 	}
 };
 
-const safeSendWelcome = async (channel, content) => {
+const sendWelcomeEmbed = async (channel, ticket, categoryInfo, welcomeText) => {
 	try {
-		await channel.send({ content });
+		await channel.send({ content: welcomeText });
+
+		const embed = new EmbedBuilder()
+			.setColor(0x5865F2)
+			.setTitle('이슈 정보')
+			.addFields(
+				{ name: '종류', value: categoryInfo.name, inline: true },
+				{ name: '제목', value: ticket.title || '제목 없음', inline: false }
+			);
+
+		const fieldsToShow = categoryInfo.fields.filter(f => f.id !== 'title');
+		fieldsToShow.forEach(field => {
+			const value = ticket.categoryFields?.get?.(field.id) || ticket.categoryFields?.[field.id] || '없음';
+			if (value && value !== '없음') {
+				embed.addFields({
+					name: field.label,
+					value: value.length > 1024 ? value.substring(0, 1021) + '...' : value,
+					inline: false,
+				});
+			}
+		});
+
+		embed.setFooter({ text: `티켓 #${ticket.ticketNumber}` });
+		embed.setTimestamp();
+
+		await channel.send({ embeds: [embed] });
 	} catch (error) {
 		logger.warn(LOG.welcomeFailed(channel.id), { error, channelId: channel.id });
 	}
@@ -101,13 +127,17 @@ async function createTicket(interaction, payload = {}) {
 		throw new ValidationError(message, { userMessage: message });
 	}
 
-	const titleRaw = payload.title || interaction.options?.getString?.('title') || DEFAULTS.title;
-	const descriptionRaw = payload.description || interaction.options?.getString?.('description') || '';
+	const category = payload.category || 'general-inquiry';
+	const categoryFields = payload.categoryFields || {};
+
+	validateCategoryFields(category, categoryFields);
+
+	const categoryInfo = getCategoryById(category);
+	const title = categoryFields.title || DEFAULTS.title;
+	const description = categoryFields.description || '';
+
 	const labelsRaw = payload.labels || interaction.options?.getString?.('labels') || '';
 	const assignee = payload.assignee || interaction.options?.getUser?.('assignee');
-
-	const title = sanitizeString(titleRaw, 'Title', 200);
-	const description = sanitizeString(descriptionRaw, 'Description', 2000);
 	const inputLabels = sanitizeLabels(labelsRaw);
 
 	const labels = inputLabels.length ? inputLabels : buildDefaultLabels(settings);
@@ -131,6 +161,8 @@ async function createTicket(interaction, payload = {}) {
 			channelUuid,
 			title,
 			description,
+			category,
+			categoryFields,
 			labels,
 			assignees,
 			userId: interaction.user.id,
@@ -140,8 +172,7 @@ async function createTicket(interaction, payload = {}) {
 			welcomeText,
 		});
 
-		const textLines = [welcomeText, description ? t('ticket.message.descriptionLine', { description }) : null].filter(Boolean);
-		await safeSendWelcome(ticketChannel, textLines.join('\n'));
+		await sendWelcomeEmbed(ticketChannel, ticketRecord.toObject(), categoryInfo, welcomeText);
 		await updateTicketSummary(ticketChannel, ticketRecord.toObject());
 		logger.info(LOG.created(ticketNumber, ticketChannel.name, ticketChannel.id, interaction.user.tag));
 	} catch (error) {
