@@ -1,4 +1,4 @@
-const { ChannelType, PermissionsBitField, EmbedBuilder } = require('discord.js');
+const { ChannelType, PermissionsBitField } = require('discord.js');
 const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
@@ -25,6 +25,7 @@ const LOG = {
 	created: (ticketNumber, channelName, channelId, userTag) => `Ticket #${ticketNumber} created: ${channelName} (${channelId}) by ${userTag}`,
 	channelDeleteFailed: channelId => `Failed to delete channel after ticket creation error: ${channelId}`,
 	welcomeFailed: channelId => `Failed to send ticket welcome message for channel ${channelId}`,
+	issueMessageFailed: channelId => `Failed to send ticket issue message for channel ${channelId}`,
 };
 
 const ERROR = {
@@ -36,37 +37,9 @@ const COUNTER_ID = 'ticketNumber';
 const MESSAGE_LIMIT = 1900;
 
 const ISSUE_TEXT = {
-	header: '이슈 정보',
-	status: '상태',
 	category: '종류',
-	title: '제목',
-	project: '프로젝트',
-	type: '타입',
-	request: '요청',
 	empty: '없음',
-};
-
-const STATUS_TEXT = {
-	open: t('ticket.status.open'),
-	inProgress: t('ticket.status.inProgress'),
-	closed: t('ticket.status.closed'),
-};
-
-const STATUS_COLOR = {
-	open: 0x2ecc71,
-	inProgress: 0xf39c12,
-	closed: 0xe74c3c,
-};
-
-const CATEGORY_OUTPUT = {
-	'deployment-issue': { project: 'project_name', type: 'environment', request: 'deployment_time' },
-	'service-outage': { project: 'project_name', type: 'affected_service', request: 'started_at' },
-	'performance-issue': { project: 'project_name', type: 'endpoint_or_page', request: 'response_time' },
-	'resource-request': { project: 'project_name', type: 'resource_type', request: 'specs' },
-	'build-failure': { project: 'project_name', type: 'error_message', request: 'build_log_url' },
-	'configuration': { project: 'project_name', type: 'config_type', request: 'current_config' },
-	'general-inquiry': { project: 'project_name', type: null, request: null },
-	default: { project: 'project_name', type: null, request: null },
+	description: '설명',
 };
 
 const getNextTicketNumber = async () => {
@@ -161,45 +134,44 @@ const readCategoryField = (ticket, fieldId) => {
 	return normalizeField(raw);
 };
 
-const resolveCategoryOutput = categoryId => CATEGORY_OUTPUT[categoryId] || CATEGORY_OUTPUT.default;
+const resolveDescriptionLabel = categoryInfo => {
+	const descriptionField = categoryInfo?.fields?.find?.(field => field.id === 'description');
+	return descriptionField?.label || ISSUE_TEXT.description;
+};
 
 const buildIssueLines = (ticket, categoryInfo) => {
-	const mapping = resolveCategoryOutput(ticket.category);
-	const project = readCategoryField(ticket, mapping.project);
-	const type = readCategoryField(ticket, mapping.type);
-	const request = readCategoryField(ticket, mapping.request);
 	const title = normalizeField(ticket.title);
 	const description = normalizeField(ticket.description);
 	const categoryName = categoryInfo?.name || ISSUE_TEXT.empty;
+	const fields = Array.isArray(categoryInfo?.fields) ? categoryInfo.fields : [];
 
-	return [
-		`# [ ${title} ]`,
-		`${ISSUE_TEXT.category} : **[ ${categoryName} ]**`,
-		`${ISSUE_TEXT.project} : **[ ${project} ]**`,
-		`${ISSUE_TEXT.type} : **[ ${type} ]**`,
-		`${ISSUE_TEXT.request} : **[ ${request} ]**`,
-		'',
-		`[ ${description} ]`,
-	];
+	const lines = [`# ${title}`, `${ISSUE_TEXT.category} : **${categoryName}**`];
+
+	fields.forEach(field => {
+		if (field.id === 'title' || field.id === 'description') return;
+		lines.push(`${field.label} : **${readCategoryField(ticket, field.id)}**`);
+	});
+
+	lines.push('');
+	lines.push(resolveDescriptionLabel(categoryInfo));
+	lines.push(description);
+
+	return lines;
 };
 
-const buildStatusEmbed = ticket => {
-	const statusKey = ticket.status === 'in-progress' ? 'inProgress' : ticket.status;
-	const statusText = STATUS_TEXT[statusKey] || ticket.status;
-	const color = STATUS_COLOR[statusKey] || STATUS_COLOR.open;
-	return new EmbedBuilder()
-		.setColor(color)
-		.setTitle(ISSUE_TEXT.status)
-		.setDescription(statusText);
-};
-
-const sendWelcomeMessage = async (channel, ticket, categoryInfo, welcomeText) => {
+const sendWelcomeMessage = async (channel, welcomeText) => {
 	try {
 		await channel.send({ content: welcomeText });
-		await channel.send({ embeds: [buildStatusEmbed(ticket)] });
-		await sendLines(channel, buildIssueLines(ticket, categoryInfo));
 	} catch (error) {
 		logger.warn(LOG.welcomeFailed(channel.id), { error, channelId: channel.id });
+	}
+};
+
+const sendIssueMessage = async (channel, ticket, categoryInfo) => {
+	try {
+		await sendLines(channel, buildIssueLines(ticket, categoryInfo));
+	} catch (error) {
+		logger.warn(LOG.issueMessageFailed(channel.id), { error, channelId: channel.id });
 	}
 };
 
@@ -256,8 +228,9 @@ async function createTicket(interaction, payload = {}) {
 			welcomeText,
 		});
 
-		await sendWelcomeMessage(ticketChannel, ticketRecord.toObject(), categoryInfo, welcomeText);
+		await sendWelcomeMessage(ticketChannel, welcomeText);
 		await updateTicketSummary(ticketChannel, ticketRecord.toObject());
+		await sendIssueMessage(ticketChannel, ticketRecord.toObject(), categoryInfo);
 		logger.info(LOG.created(ticketNumber, ticketChannel.name, ticketChannel.id, interaction.user.tag));
 	} catch (error) {
 		await safeDeleteChannel(ticketChannel);
