@@ -1,4 +1,4 @@
-const { ChannelType, PermissionsBitField } = require('discord.js');
+const { ChannelType, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { createTicket: createTicketRecord } = require('@xquare/domain/ticket/repository/createTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
@@ -40,7 +40,33 @@ const ISSUE_TEXT = {
 	status: '상태',
 	category: '종류',
 	title: '제목',
+	project: '프로젝트',
+	type: '타입',
+	request: '요청',
 	empty: '없음',
+};
+
+const STATUS_TEXT = {
+	open: t('ticket.status.open'),
+	inProgress: t('ticket.status.inProgress'),
+	closed: t('ticket.status.closed'),
+};
+
+const STATUS_COLOR = {
+	open: 0x2ecc71,
+	inProgress: 0xf39c12,
+	closed: 0xe74c3c,
+};
+
+const CATEGORY_OUTPUT = {
+	'deployment-issue': { project: 'project_name', type: 'environment', request: 'deployment_time' },
+	'service-outage': { project: 'project_name', type: 'affected_service', request: 'started_at' },
+	'performance-issue': { project: 'project_name', type: 'endpoint_or_page', request: 'response_time' },
+	'resource-request': { project: 'project_name', type: 'resource_type', request: 'specs' },
+	'build-failure': { project: 'project_name', type: 'error_message', request: 'build_log_url' },
+	'configuration': { project: 'project_name', type: 'config_type', request: 'current_config' },
+	'general-inquiry': { project: 'project_name', type: null, request: null },
+	default: { project: 'project_name', type: null, request: null },
 };
 
 const getNextTicketNumber = async () => {
@@ -124,30 +150,54 @@ const sendLines = async (channel, lines) => {
 	for (const chunk of chunks) await channel.send({ content: chunk });
 };
 
+const normalizeField = value => {
+	const text = value === undefined || value === null ? '' : String(value).trim();
+	return text || ISSUE_TEXT.empty;
+};
+
+const readCategoryField = (ticket, fieldId) => {
+	if (!fieldId) return ISSUE_TEXT.empty;
+	const raw = ticket.categoryFields?.get?.(fieldId) || ticket.categoryFields?.[fieldId];
+	return normalizeField(raw);
+};
+
+const resolveCategoryOutput = categoryId => CATEGORY_OUTPUT[categoryId] || CATEGORY_OUTPUT.default;
+
 const buildIssueLines = (ticket, categoryInfo) => {
-	const lines = [
-		ISSUE_TEXT.header,
-		`${ISSUE_TEXT.status}: ${ticket.status}`,
-		`${ISSUE_TEXT.category}: ${categoryInfo.name}`,
-		`${ISSUE_TEXT.title}: ${ticket.title || ISSUE_TEXT.empty}`,
+	const mapping = resolveCategoryOutput(ticket.category);
+	const project = readCategoryField(ticket, mapping.project);
+	const type = readCategoryField(ticket, mapping.type);
+	const request = readCategoryField(ticket, mapping.request);
+	const title = normalizeField(ticket.title);
+	const description = normalizeField(ticket.description);
+	const categoryName = categoryInfo?.name || ISSUE_TEXT.empty;
+
+	return [
+		`# [ ${title} ]`,
+		`${ISSUE_TEXT.category} : **[ ${categoryName} ]**`,
+		`${ISSUE_TEXT.project} : **[ ${project} ]**`,
+		`${ISSUE_TEXT.type} : **[ ${type} ]**`,
+		`${ISSUE_TEXT.request} : **[ ${request} ]**`,
+		'',
+		`[ ${description} ]`,
 	];
+};
 
-	categoryInfo.fields.filter(field => field.id !== 'title').forEach(field => {
-		const rawValue = ticket.categoryFields?.get?.(field.id) || ticket.categoryFields?.[field.id] || '';
-		const value = String(rawValue).trim();
-		if (!value) return;
-		lines.push(`${field.label}: ${value}`);
-	});
-
-	lines.push(`티켓 #${ticket.ticketNumber}`);
-	return lines;
+const buildStatusEmbed = ticket => {
+	const statusKey = ticket.status === 'in-progress' ? 'inProgress' : ticket.status;
+	const statusText = STATUS_TEXT[statusKey] || ticket.status;
+	const color = STATUS_COLOR[statusKey] || STATUS_COLOR.open;
+	return new EmbedBuilder()
+		.setColor(color)
+		.setTitle(ISSUE_TEXT.status)
+		.setDescription(statusText);
 };
 
 const sendWelcomeMessage = async (channel, ticket, categoryInfo, welcomeText) => {
 	try {
 		await channel.send({ content: welcomeText });
-		const lines = buildIssueLines(ticket, categoryInfo);
-		await sendLines(channel, lines);
+		await channel.send({ embeds: [buildStatusEmbed(ticket)] });
+		await sendLines(channel, buildIssueLines(ticket, categoryInfo));
 	} catch (error) {
 		logger.warn(LOG.welcomeFailed(channel.id), { error, channelId: channel.id });
 	}
