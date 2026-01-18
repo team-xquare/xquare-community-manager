@@ -8,7 +8,7 @@ const logger = require('@xquare/global/utils/loggers/logger');
 const { updateTicketSummary } = require('@xquare/domain/ticket/service/ticketSummaryService');
 const { getOrCreateCategory } = require('@xquare/global/utils/category');
 const { getSetting } = require('@xquare/domain/setting/service/settingService');
-const { buildTicketChannelName, normalizeClosedName, stripClosedPrefix } = require('@xquare/domain/ticket/service/ticketChannelNameService');
+const { buildTicketChannelName, normalizeClosedName, normalizeOpenName } = require('@xquare/domain/ticket/service/ticketChannelNameService');
 const { ensureCategoryCapacity } = require('@xquare/domain/ticket/service/ticketRetentionService');
 const { t } = require('@xquare/global/i18n');
 
@@ -68,8 +68,7 @@ const updateReopenStatus = channel => updateTicketByChannelId(channel.id, {
 });
 
 const renameClosedChannel = async (channel, openName) => {
-	const baseName = openName || stripClosedPrefix(channel.name);
-	const targetName = normalizeClosedName(baseName);
+	const targetName = normalizeClosedName(openName || channel.name);
 	try {
 		await channel.setName(targetName.slice(0, 100));
 	} catch (error) {
@@ -78,7 +77,7 @@ const renameClosedChannel = async (channel, openName) => {
 };
 
 const renameOpenChannel = async (channel, openName) => {
-	const targetName = openName || stripClosedPrefix(channel.name);
+	const targetName = normalizeOpenName(openName || channel.name);
 	try {
 		await channel.setName(targetName.slice(0, 100));
 	} catch (error) {
@@ -111,8 +110,8 @@ const getCategoryName = async (channel, key) => {
 
 const resolveOpenChannelName = (ticket, channel) => {
 	if (ticket?.channelUuid) return buildTicketChannelName(ticket.ticketNumber, ticket.channelUuid);
-	if (ticket?.originalChannelName) return ticket.originalChannelName;
-	return stripClosedPrefix(channel.name);
+	if (ticket?.originalChannelName) return normalizeOpenName(ticket.originalChannelName);
+	return normalizeOpenName(channel.name);
 };
 
 const updatePermissions = async (channel, userId, permissions, logMessage, logContext) => {
