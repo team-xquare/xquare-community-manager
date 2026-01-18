@@ -37,19 +37,22 @@ const buildStatus = ticket => {
 
 const formatLabels = labels => labels?.length ? labels.map(label => `\`${label}\``).join(', ') : TEXT.labelsNone;
 const formatAssignees = assignees => assignees?.length ? assignees.map(id => `<@${id}>`).join(', ') : TEXT.assigneesNone;
+const formatCreatedAt = ticket => {
+	const createdAtUnix = ticket.createdAt ? Math.floor(ticket.createdAt.getTime() / 1000) : null;
+	return createdAtUnix ? `<t:${createdAtUnix}:f>` : null;
+};
 
 function buildTicketEmbed(ticket) {
 	const statusInfo = buildStatus(ticket);
+	const createdAtText = formatCreatedAt(ticket);
+	const statusValue = createdAtText ? `${statusInfo.text} • ${TEXT.fields.created} ${createdAtText}` : statusInfo.text;
 	const embed = new EmbedBuilder()
 		.addFields(
-			{ name: TEXT.fields.status, value: statusInfo.text, inline: true },
+			{ name: TEXT.fields.status, value: statusValue, inline: true },
 			{ name: TEXT.fields.labels, value: formatLabels(ticket.labels), inline: true },
 			{ name: TEXT.fields.assignees, value: formatAssignees(ticket.assignees), inline: true },
 		)
 		.setColor(statusInfo.color);
-
-	const createdAtUnix = ticket.createdAt ? Math.floor(ticket.createdAt.getTime() / 1000) : null;
-	if (createdAtUnix) embed.addFields({ name: TEXT.fields.created, value: `<t:${createdAtUnix}:f>` });
 	return embed;
 }
 

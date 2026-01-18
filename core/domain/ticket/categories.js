@@ -10,7 +10,7 @@ const ERROR = {
 };
 
 const PATTERN_MESSAGE = {
-	deploymentTime: '배포 시도 시각 형식은 YYYY-MM-DD HH:MM 입니다.',
+	dateTime: '시각 형식은 YYYY-MM-DD HH:MM 입니다.',
 };
 
 const CATEGORIES = {
@@ -25,12 +25,12 @@ const CATEGORIES = {
 			{ id: 'environment', label: '환경 (production/staging/development)', type: 'short', required: true, maxLength: 50 },
 			{
 				id: 'deployment_time',
-				label: '배포 시도 시각 (예: 2024-01-15 14:30)',
+				label: '배포 시도 시각',
 				type: 'short',
 				required: true,
 				maxLength: 100,
 				pattern: DATE_TIME_PATTERN,
-				patternMessage: PATTERN_MESSAGE.deploymentTime,
+				patternMessage: PATTERN_MESSAGE.dateTime,
 			},
 		],
 	},
@@ -43,7 +43,15 @@ const CATEGORIES = {
 			{ id: 'description', label: '상세 설명', type: 'long', required: true, maxLength: 2000 },
 			{ id: 'project_name', label: '프로젝트명', type: 'short', required: true, maxLength: 100 },
 			{ id: 'affected_service', label: '영향받는 서비스', type: 'short', required: true, maxLength: 200 },
-			{ id: 'started_at', label: '장애 시작 시각 (예: 2024-01-15 14:30)', type: 'short', required: true, maxLength: 100 },
+			{
+				id: 'started_at',
+				label: '장애 시작 시각',
+				type: 'short',
+				required: true,
+				maxLength: 100,
+				pattern: DATE_TIME_PATTERN,
+				patternMessage: PATTERN_MESSAGE.dateTime,
+			},
 		],
 	},
 	'performance-issue': {
