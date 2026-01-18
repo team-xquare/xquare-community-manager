@@ -17,9 +17,27 @@ module.exports = {
 		unexpected: '알 수 없는 오류가 발생했습니다.',
 		generic: '오류가 발생했습니다.',
 	},
+	support: {
+		command: {
+			description: '지원 티켓을 생성하거나 조회합니다.',
+		},
+	},
+	operation: {
+		command: {
+			description: '티켓 운영 작업을 수행합니다.',
+		},
+	},
+	configuration: {
+		command: {
+			description: '티켓 설정을 관리합니다.',
+		},
+	},
 	ticket: {
 		command: {
 			description: '티켓을 생성하거나 설정을 관리합니다.',
+		},
+		group: {
+			description: '티켓',
 		},
 		subcommand: {
 			open: {
@@ -170,7 +188,7 @@ module.exports = {
 		lifecycle: {
 			reasonLine: '\n이유: {reason}',
 			closed: '티켓이 종료되었습니다. 요청자: <@{userId}>{reason}',
-			closeScheduled: '티켓이 {time}에 종료됩니다.\n담당자 : <@{assigneeId}> / 작성자 : <@{authorId}>',
+			closeScheduled: '티켓이 {time}에 종료됩니다.\n담당자 : {assignees} / 작성자 : <@{authorId}>',
 			reopened: '티켓이 다시 열렸습니다. 요청자: <@{userId}>',
 		},
 		migration: {
@@ -185,7 +203,7 @@ module.exports = {
 			publishPrompt: '티켓을 생성하려면 아래 버튼을 눌러주세요.',
 			selectPlaceholder: '이슈 종류를 선택해주세요',
 			selectPrompt: '아래에서 이슈 종류를 선택해주세요.',
-			missingChannel: '티켓 생성 UI 채널이 설정되지 않았습니다. /ticket set creation_channel 로 설정해주세요.',
+			missingChannel: '티켓 생성 UI 채널이 설정되지 않았습니다. /configuration ticket set creation_channel 로 설정해주세요.',
 			channelNotFound: '설정된 생성 채널을 찾을 수 없습니다.',
 		},
 		modal: {

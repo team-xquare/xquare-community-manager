@@ -1,22 +1,21 @@
 const { EmbedBuilder } = require('discord.js');
 const { updateTicketByChannelId } = require('@xquare/domain/ticket/repository/updateTicketRepository');
 const logger = require('@xquare/global/utils/loggers/logger');
-const { t } = require('@xquare/global/i18n');
 
 const TEXT = {
 	status: {
-		closed: t('ticket.status.closed'),
-		closing: minutesLeft => t('ticket.status.closing', { minutesLeft }),
-		inProgress: t('ticket.status.inProgress'),
-		open: t('ticket.status.open'),
+		closed: 'CLOSED',
+		closing: 'CLOSING',
+		progressing: 'PROGRESSING',
+		pending: 'PENDING',
 	},
-	labelsNone: t('common.none'),
-	assigneesNone: t('common.unassigned'),
+	labelsNone: 'NONE',
+	assigneesNone: 'UNASSIGNED',
 	fields: {
-		status: t('ticket.summary.field.status'),
-		labels: t('ticket.summary.field.labels'),
-		assignees: t('ticket.summary.field.assignees'),
-		created: t('ticket.summary.field.created'),
+		status: 'STATUS',
+		labels: 'LABELS',
+		assignees: 'ASSIGNEES',
+		created: 'CREATED',
 	},
 };
 
@@ -27,19 +26,33 @@ const LOG = {
 
 const buildStatus = ticket => {
 	if (ticket.status === 'closed') return { text: TEXT.status.closed, color: 0xe74c3c };
-	if (ticket.closeScheduledAt && ticket.closeScheduledAt.getTime() > Date.now()) {
-		const minutesLeft = Math.max(1, Math.ceil((ticket.closeScheduledAt.getTime() - Date.now()) / 60000));
-		return { text: TEXT.status.closing(minutesLeft), color: 0xf1c40f };
-	}
-	if (ticket.status === 'in-progress') return { text: TEXT.status.inProgress, color: 0xf39c12 };
-	return { text: TEXT.status.open, color: 0x2ecc71 };
+	if (ticket.closeScheduledAt && ticket.closeScheduledAt.getTime() > Date.now()) return { text: TEXT.status.closing, color: 0xf1c40f };
+	if (ticket.status === 'in-progress' || ticket.assignees?.length) return { text: TEXT.status.progressing, color: 0xf39c12 };
+	return { text: TEXT.status.pending, color: 0x2ecc71 };
 };
 
 const formatLabels = labels => labels?.length ? labels.map(label => `\`${label}\``).join(', ') : TEXT.labelsNone;
 const formatAssignees = assignees => assignees?.length ? assignees.map(id => `<@${id}>`).join(', ') : TEXT.assigneesNone;
+
+const getKstParts = date => new Intl.DateTimeFormat('sv-SE', {
+	timeZone: 'Asia/Seoul',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	hour12: false,
+}).formatToParts(date).reduce((acc, part) => {
+	acc[part.type] = part.value;
+	return acc;
+}, {});
+
 const formatCreatedAt = ticket => {
-	const createdAtUnix = ticket.createdAt ? Math.floor(ticket.createdAt.getTime() / 1000) : null;
-	return createdAtUnix ? `<t:${createdAtUnix}:f>` : null;
+	const createdAt = ticket.createdAt ? new Date(ticket.createdAt) : null;
+	if (!createdAt) return null;
+	const parts = getKstParts(createdAt);
+	if (!parts.year) return null;
+	return `${parts.year}-${parts.month}-${parts.day}, ${parts.hour}-${parts.minute}`;
 };
 
 function buildTicketEmbed(ticket) {

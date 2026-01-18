@@ -22,8 +22,9 @@ const ERROR = {
 const TEXT = {
 	reasonLine: reason => t('ticket.lifecycle.reasonLine', { reason }),
 	closed: (userId, reason) => t('ticket.lifecycle.closed', { userId, reason }),
-	closeScheduled: (time, assigneeId, authorId) => t('ticket.lifecycle.closeScheduled', { time, assigneeId, authorId }),
+	closeScheduled: (time, assignees, authorId) => t('ticket.lifecycle.closeScheduled', { time, assignees, authorId }),
 	reopened: userId => t('ticket.lifecycle.reopened', { userId }),
+	assigneesNone: t('common.none'),
 };
 
 const LOG = {
@@ -40,8 +41,26 @@ const LOG = {
 
 const pendingCloseTimers = new Map();
 
-const padTwo = value => String(value).padStart(2, '0');
-const formatCloseTime = date => `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}, ${padTwo(date.getHours())}-${padTwo(date.getMinutes())}`;
+const getKstParts = date => new Intl.DateTimeFormat('sv-SE', {
+	timeZone: 'Asia/Seoul',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	hour12: false,
+}).formatToParts(date).reduce((acc, part) => {
+	acc[part.type] = part.value;
+	return acc;
+}, {});
+
+const formatCloseTime = date => {
+	const parts = getKstParts(date);
+	if (!parts.year) return '';
+	return `${parts.year}-${parts.month}-${parts.day}, ${parts.hour}-${parts.minute}`;
+};
+
+const formatAssignees = assignees => assignees?.length ? assignees.map(id => `<@${id}>`).join(', ') : TEXT.assigneesNone;
 
 const hasManageGuild = member => member?.permissions?.has?.(PermissionsBitField.Flags.ManageGuild);
 
@@ -179,7 +198,8 @@ async function closeTicket(channel, actorMember, reason, options = {}) {
 	await updateTicketSummary(channel, updated);
 
 	const closeTime = formatCloseTime(closesAt);
-	await channel.send(TEXT.closeScheduled(closeTime, actorMember.id, ticket.userId));
+	const assigneesText = formatAssignees(ticket.assignees);
+	await channel.send(TEXT.closeScheduled(closeTime, assigneesText, ticket.userId));
 
 	scheduleCloseTimer(channel, closesAt, reason);
 	return { scheduled: true, closesAt };
