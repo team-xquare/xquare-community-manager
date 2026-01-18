@@ -187,7 +187,7 @@ module.exports = {
 		},
 		lifecycle: {
 			reasonLine: '\n이유: {reason}',
-			closed: '티켓이 종료되었습니다. 요청자: <@{userId}>{reason}',
+			closed: '티켓이 종료되었습니다.{reason}',
 			closeScheduled: '티켓이 {time}에 종료됩니다.\n담당자 : {assignees} / 작성자 : <@{authorId}>',
 			reopened: '티켓이 다시 열렸습니다. 요청자: <@{userId}>',
 		},
