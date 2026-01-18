@@ -4,7 +4,7 @@ const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const logger = require('@xquare/global/utils/loggers/logger');
 const connectDB = require('@xquare/global/configs/database');
-const { migrateTicketCounter } = require('@xquare/domain/ticket/service/ticketMigrationService');
+const { migrateTicketCounter, migrateTicketParticipants } = require('@xquare/domain/ticket/service/ticketMigrationService');
 const { runMigrationOnce } = require('@xquare/domain/ticket/migration');
 require('dotenv').config();
 
@@ -65,7 +65,8 @@ const start = async () => {
 	if (!validateEnv()) process.exit(1);
 	try {
 		await connectDB();
-		await runMigrationOnce(migrateTicketCounter);
+		await runMigrationOnce(migrateTicketCounter, { id: 'ticketCounterMigration', version: 1 });
+		await runMigrationOnce(migrateTicketParticipants, { id: 'ticketParticipantsMigration', version: 1 });
 		const client = buildClient();
 		client.commands = new Collection();
 		loadCommands(client);

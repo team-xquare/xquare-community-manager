@@ -1,6 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { createTicket } = require('@xquare/domain/ticket/service/createTicketService');
 const { getTicketByChannelId, listTickets } = require('@xquare/domain/ticket/service/ticketQueryService');
+const { addParticipants, removeParticipants } = require('@xquare/domain/ticket/service/ticketParticipantService');
 const { handleError, wrapUnexpected } = require('@xquare/global/utils/errorHandler');
 const { FLAGS } = require('@xquare/global/utils/commandFlags');
 const { LIMITS, LABELS_INPUT_MAX } = require('@xquare/global/utils/commandLimits');
@@ -11,6 +12,7 @@ const { t } = require('@xquare/global/i18n');
 
 const TEXT = {
 	common: {
+		userNotFound: t('common.userNotFound'),
 		none: t('common.none'),
 		unassigned: t('common.unassigned'),
 		unknown: t('common.unknown'),
@@ -43,6 +45,14 @@ const TEXT = {
 				limit: t('ticket.subcommand.list.option.limit'),
 			},
 		},
+		addParticipant: {
+			description: t('ticket.subcommand.addParticipant.description'),
+			option: { user: t('ticket.subcommand.addParticipant.option.user') },
+		},
+		removeParticipant: {
+			description: t('ticket.subcommand.removeParticipant.description'),
+			option: { user: t('ticket.subcommand.removeParticipant.option.user') },
+		},
 	},
 	response: {
 		created: channelId => t('ticket.response.created', { channelId }),
@@ -52,6 +62,11 @@ const TEXT = {
 		noTickets: t('ticket.response.noTickets'),
 		listError: t('ticket.response.listError'),
 		adminOnlyList: t('ticket.response.adminOnlyList'),
+		participantPermission: t('ticket.response.participantPermission'),
+		participantAdded: participants => t('ticket.response.participantAdded', { participants }),
+		participantRemoved: participants => t('ticket.response.participantRemoved', { participants }),
+		participantAddError: t('ticket.response.participantAddError'),
+		participantRemoveError: t('ticket.response.participantRemoveError'),
 	},
 	info: {
 		number: ticketNumber => t('ticket.info.number', { ticketNumber }),
@@ -84,6 +99,16 @@ const buildInfoSubcommand = subcommand => subcommand
 	.setName('info')
 	.setDescription(TEXT.subcommand.info.description);
 
+const buildAddParticipantSubcommand = subcommand => subcommand
+	.setName('add-participant')
+	.setDescription(TEXT.subcommand.addParticipant.description)
+	.addUserOption(option => option.setName('user').setDescription(TEXT.subcommand.addParticipant.option.user).setRequired(true));
+
+const buildRemoveParticipantSubcommand = subcommand => subcommand
+	.setName('remove-participant')
+	.setDescription(TEXT.subcommand.removeParticipant.description)
+	.addUserOption(option => option.setName('user').setDescription(TEXT.subcommand.removeParticipant.option.user).setRequired(true));
+
 const buildListSubcommand = subcommand => subcommand
 	.setName('list')
 	.setDescription(TEXT.subcommand.list.description)
@@ -101,6 +126,8 @@ const buildTicketGroup = group => group
 	.setDescription(TEXT.group.ticket)
 	.addSubcommand(buildOpenSubcommand)
 	.addSubcommand(buildInfoSubcommand)
+	.addSubcommand(buildAddParticipantSubcommand)
+	.addSubcommand(buildRemoveParticipantSubcommand)
 	.addSubcommand(buildListSubcommand);
 
 const data = new SlashCommandBuilder()
@@ -148,6 +175,48 @@ async function handleInfo(interaction) {
 	}
 }
 
+const canManageParticipants = (interaction, ticket) => (
+	interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild) || ticket?.userId === interaction.user.id
+);
+
+async function handleAddParticipant(interaction) {
+	await interaction.deferReply(FLAGS);
+
+	const ticket = await getTicketByChannelId(interaction.channel.id);
+	if (!ticket) return interaction.editReply({ content: TEXT.response.infoNotFound });
+	if (!canManageParticipants(interaction, ticket)) return interaction.editReply({ content: TEXT.response.participantPermission });
+
+	const user = interaction.options.getUser('user');
+	if (!user) return interaction.editReply({ content: TEXT.common.userNotFound });
+
+	try {
+		const updated = await addParticipants(interaction.channel, [user.id]);
+		const participants = formatAssignees(updated.participants || [], TEXT.common.none);
+		return interaction.editReply({ content: TEXT.response.participantAdded(participants) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.participantAddError });
+	}
+}
+
+async function handleRemoveParticipant(interaction) {
+	await interaction.deferReply(FLAGS);
+
+	const ticket = await getTicketByChannelId(interaction.channel.id);
+	if (!ticket) return interaction.editReply({ content: TEXT.response.infoNotFound });
+	if (!canManageParticipants(interaction, ticket)) return interaction.editReply({ content: TEXT.response.participantPermission });
+
+	const user = interaction.options.getUser('user');
+	if (!user) return interaction.editReply({ content: TEXT.common.userNotFound });
+
+	try {
+		const updated = await removeParticipants(interaction.channel, [user.id]);
+		const participants = formatAssignees(updated.participants || [], TEXT.common.none);
+		return interaction.editReply({ content: TEXT.response.participantRemoved(participants) });
+	} catch (error) {
+		return handleError(wrapUnexpected(error), { interaction, userMessage: TEXT.response.participantRemoveError });
+	}
+}
+
 async function handleList(interaction) {
 	if (!await ensureAdmin(interaction, TEXT.response.adminOnlyList)) return;
 	await interaction.deferReply(FLAGS);
@@ -180,6 +249,8 @@ const HANDLERS = {
 	ticket: {
 		open: handleOpen,
 		info: handleInfo,
+		'add-participant': handleAddParticipant,
+		'remove-participant': handleRemoveParticipant,
 		list: handleList,
 	},
 };

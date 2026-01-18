@@ -111,6 +111,18 @@ module.exports = {
 					limit: '최대 조회 개수(1~20)',
 				},
 			},
+			addParticipant: {
+				description: '관련자를 추가합니다.',
+				option: {
+					user: '관련자',
+				},
+			},
+			removeParticipant: {
+				description: '관련자를 제거합니다.',
+				option: {
+					user: '제거할 관련자',
+				},
+			},
 		},
 		response: {
 			created: '티켓이 생성되었습니다: <#{channelId}>',
@@ -143,6 +155,11 @@ module.exports = {
 			adminOnlyAssign: '관리자만 담당자를 지정할 수 있습니다.',
 			adminOnlyUnassign: '관리자만 담당자를 해제할 수 있습니다.',
 			adminOnlyList: '관리자만 티켓 목록을 조회할 수 있습니다.',
+			participantPermission: '작성자 또는 관리자만 관련자를 수정할 수 있습니다.',
+			participantAdded: '관련자가 추가되었습니다. 현재 관련자: {participants}',
+			participantRemoved: '관련자가 제거되었습니다. 현재 관련자: {participants}',
+			participantAddError: '관련자 추가 중 오류가 발생했습니다.',
+			participantRemoveError: '관련자 제거 중 오류가 발생했습니다.',
 		},
 		settings: {
 			line: {

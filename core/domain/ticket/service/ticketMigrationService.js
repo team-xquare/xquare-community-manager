@@ -12,6 +12,10 @@ const LOG = {
 	counterSkipped: 'Ticket counter already up to date',
 	counterUpdated: (from, to) => `Ticket counter updated from ${from} to ${to}`,
 	counterFailed: 'Ticket counter migration failed',
+	participantsStart: 'Starting ticket participants migration',
+	participantsSkipped: 'Ticket participants migration skipped',
+	participantsUpdated: count => `Ticket participants migration updated: count=${count}`,
+	participantsFailed: 'Ticket participants migration failed',
 	channelStart: 'Starting ticket channel name migration',
 	channelNoTickets: 'Skipping ticket channel name migration (no tickets)',
 	channelMissing: 'Ticket channel not found during migration',
@@ -43,6 +47,22 @@ async function migrateTicketCounter() {
 		logger.info(LOG.counterUpdated(current, maxTicketNumber));
 	} catch (error) {
 		logger.error(LOG.counterFailed, { error });
+		throw error;
+	}
+}
+
+async function migrateTicketParticipants() {
+	try {
+		logger.info(LOG.participantsStart);
+		const result = await Ticket.updateMany(
+			{ participants: { $exists: false } },
+			{ $set: { participants: [] } }
+		);
+		const updated = result?.modifiedCount ?? result?.nModified ?? 0;
+		if (!updated) return logger.info(LOG.participantsSkipped);
+		logger.info(LOG.participantsUpdated(updated));
+	} catch (error) {
+		logger.error(LOG.participantsFailed, { error });
 		throw error;
 	}
 }
@@ -116,5 +136,6 @@ async function migrateTicketChannels(client) {
 
 module.exports = {
 	migrateTicketCounter,
+	migrateTicketParticipants,
 	migrateTicketChannels,
 };

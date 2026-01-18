@@ -1,8 +1,8 @@
 const Counter = require('@xquare/domain/ticket/counter');
 const logger = require('@xquare/global/utils/loggers/logger');
 
-const MIGRATION_ID = 'ticketCounterMigration';
-const MIGRATION_VERSION = 1;
+const DEFAULT_MIGRATION_ID = 'ticketCounterMigration';
+const DEFAULT_MIGRATION_VERSION = 1;
 
 const LOG = {
 	migrationCheck: 'Checking migration status',
@@ -12,23 +12,25 @@ const LOG = {
 	migrationFailed: 'Migration failed',
 };
 
-async function getMigrationStatus() {
-	const migration = await Counter.findById(MIGRATION_ID).lean();
+async function getMigrationStatus(migrationId = DEFAULT_MIGRATION_ID) {
+	const migration = await Counter.findById(migrationId).lean();
 	return migration?.sequence || 0;
 }
 
-async function setMigrationStatus(version) {
+async function setMigrationStatus(migrationId, version) {
 	await Counter.updateOne(
-		{ _id: MIGRATION_ID },
+		{ _id: migrationId },
 		{ $set: { sequence: version } },
 		{ upsert: true }
 	);
 }
 
-async function runMigrationOnce(migrationFn, version = MIGRATION_VERSION) {
+async function runMigrationOnce(migrationFn, options = {}) {
+	const migrationId = options.id || DEFAULT_MIGRATION_ID;
+	const version = options.version ?? DEFAULT_MIGRATION_VERSION;
 	try {
 		logger.info(LOG.migrationCheck);
-		const currentVersion = await getMigrationStatus();
+		const currentVersion = await getMigrationStatus(migrationId);
 
 		if (currentVersion >= version) {
 			logger.info(LOG.migrationSkipped);
@@ -37,7 +39,7 @@ async function runMigrationOnce(migrationFn, version = MIGRATION_VERSION) {
 
 		logger.info(LOG.migrationNeeded(version));
 		await migrationFn();
-		await setMigrationStatus(version);
+		await setMigrationStatus(migrationId, version);
 		logger.info(LOG.migrationCompleted(version));
 		return true;
 	} catch (error) {

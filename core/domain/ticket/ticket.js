@@ -43,6 +43,10 @@ const ticketSchema = new mongoose.Schema({
 		type: [String],
 		default: [],
 	},
+	participants: {
+		type: [String],
+		default: [],
+	},
 	userId: {
 		type: String,
 		required: true,
@@ -101,6 +105,7 @@ ticketSchema.index({ status: 1 });
 ticketSchema.index({ category: 1 });
 ticketSchema.index({ labels: 1 });
 ticketSchema.index({ assignees: 1 });
+ticketSchema.index({ participants: 1 });
 ticketSchema.index({ guildId: 1, status: 1 });
 ticketSchema.index({ guildId: 1, category: 1 });
 ticketSchema.index({ closeScheduledAt: 1 }, { sparse: true });
