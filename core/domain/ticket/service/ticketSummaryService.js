@@ -27,7 +27,7 @@ const LOG = {
 const buildStatus = ticket => {
 	if (ticket.status === 'closed') return { text: TEXT.status.closed, color: 0xe74c3c };
 	if (ticket.closeScheduledAt && ticket.closeScheduledAt.getTime() > Date.now()) return { text: TEXT.status.closing, color: 0xf1c40f };
-	if (ticket.status === 'in-progress' || ticket.assignees?.length) return { text: TEXT.status.progressing, color: 0xf39c12 };
+	if (ticket.status === 'in-progress' || ticket.assignees?.length) return { text: TEXT.status.progressing, color: 0x3498db };
 	return { text: TEXT.status.pending, color: 0x2ecc71 };
 };
 
