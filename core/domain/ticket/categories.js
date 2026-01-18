@@ -87,7 +87,7 @@ const CATEGORIES = {
 			{ id: 'description', label: '상세 설명', type: 'long', required: true, maxLength: 2000 },
 			{ id: 'project_name', label: '프로젝트명', type: 'short', required: true, maxLength: 100 },
 			{ id: 'error_message', label: '에러 메시지', type: 'long', required: true, maxLength: 1000 },
-			{ id: 'build_log_url', label: '빌드 로그 URL (선택사항)', type: 'short', required: false, maxLength: 500 },
+			{ id: 'build_log_url', label: '빌드 로그 URL', type: 'short', required: false, maxLength: 500 },
 		],
 	},
 	'configuration': {
@@ -99,7 +99,7 @@ const CATEGORIES = {
 			{ id: 'description', label: '상세 설명', type: 'long', required: true, maxLength: 2000 },
 			{ id: 'project_name', label: '프로젝트명', type: 'short', required: true, maxLength: 100 },
 			{ id: 'config_type', label: '설정 타입 (환경변수/도메인/데이터베이스/기타)', type: 'short', required: true, maxLength: 100 },
-			{ id: 'current_config', label: '현재 설정 (선택사항)', type: 'short', required: false, maxLength: 500 },
+			{ id: 'current_config', label: '현재 설정', type: 'short', required: false, maxLength: 500 },
 		],
 	},
 	'general-inquiry': {
@@ -109,7 +109,7 @@ const CATEGORIES = {
 		fields: [
 			{ id: 'title', label: '문의 제목', type: 'short', required: true, maxLength: 200 },
 			{ id: 'description', label: '상세 내용', type: 'long', required: true, maxLength: 2000 },
-			{ id: 'project_name', label: '프로젝트명 (선택사항)', type: 'short', required: false, maxLength: 100 },
+			{ id: 'project_name', label: '프로젝트명', type: 'short', required: false, maxLength: 100 },
 		],
 	},
 };

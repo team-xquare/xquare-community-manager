@@ -22,7 +22,7 @@ const ERROR = {
 const TEXT = {
 	reasonLine: reason => t('ticket.lifecycle.reasonLine', { reason }),
 	closed: (userId, reason) => t('ticket.lifecycle.closed', { userId, reason }),
-	closeScheduled: (minutes, reason) => t('ticket.lifecycle.closeScheduled', { minutes, reason }),
+	closeScheduled: (time, assigneeId, authorId) => t('ticket.lifecycle.closeScheduled', { time, assigneeId, authorId }),
 	reopened: userId => t('ticket.lifecycle.reopened', { userId }),
 };
 
@@ -39,6 +39,9 @@ const LOG = {
 };
 
 const pendingCloseTimers = new Map();
+
+const padTwo = value => String(value).padStart(2, '0');
+const formatCloseTime = date => `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}, ${padTwo(date.getHours())}-${padTwo(date.getMinutes())}`;
 
 const hasManageGuild = member => member?.permissions?.has?.(PermissionsBitField.Flags.ManageGuild);
 
@@ -175,9 +178,8 @@ async function closeTicket(channel, actorMember, reason, options = {}) {
 	const updated = await updateTicketByChannelId(channel.id, { closeScheduledAt: closesAt, closeScheduledBy: actorMember.id });
 	await updateTicketSummary(channel, updated);
 
-	const reasonText = reason ? TEXT.reasonLine(reason) : '';
-	const minutes = Math.max(1, Math.round(delayMs / 60000));
-	await channel.send(TEXT.closeScheduled(minutes, reasonText));
+	const closeTime = formatCloseTime(closesAt);
+	await channel.send(TEXT.closeScheduled(closeTime, actorMember.id, ticket.userId));
 
 	scheduleCloseTimer(channel, closesAt, reason);
 	return { scheduled: true, closesAt };
