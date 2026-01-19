@@ -70,6 +70,7 @@ const deleteTicketChannel = async (client, ticket, reason) => {
 	const channel = await fetchChannel(client, ticket.channelId);
 	if (!channel) {
 		logger.warn(LOG.deleteMissing, { ticketId: ticket._id, channelId: ticket.channelId });
+		await updateTicketById(ticket._id, buildDeletionUpdate(ticket));
 		return { deleted: false, missing: true };
 	}
 	const deleted = await deleteChannel(channel, reason);
@@ -169,4 +170,5 @@ const startTicketRetention = client => {
 module.exports = {
 	startTicketRetention,
 	ensureCategoryCapacity,
+	buildDeletionUpdate,
 };

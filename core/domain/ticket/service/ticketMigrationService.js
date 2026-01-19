@@ -2,6 +2,7 @@ const Counter = require('@xquare/domain/ticket/counter');
 const Ticket = require('@xquare/domain/ticket/ticket');
 const logger = require('@xquare/global/utils/loggers/logger');
 const { updateTicketById } = require('@xquare/domain/ticket/repository/updateTicketRepository');
+const { buildDeletionUpdate } = require('@xquare/domain/ticket/service/ticketRetentionService');
 const { buildTicketChannelName, generateChannelUuid, normalizeClosedName } = require('@xquare/domain/ticket/service/ticketChannelNameService');
 
 const COUNTER_ID = 'ticketNumber';
@@ -113,6 +114,7 @@ async function migrateTicketChannels(client) {
 
 			const channel = channelMap.get(ticket.channelId);
 			if (!channel) {
+				await updateTicketById(ticket._id, buildDeletionUpdate(ticket));
 				missing += 1;
 				continue;
 			}
